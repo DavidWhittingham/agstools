@@ -37,3 +37,6 @@ nosetests.xml
 
 # VS
 *.suo
+
+# Esri Products
+*.lock
