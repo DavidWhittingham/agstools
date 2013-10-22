@@ -37,10 +37,17 @@ class StoreNameValuePairs(argparse.Action):
 
         setattr(namespace, self.dest, values_dict)
 
-def map_to_sddraft(args):
+def delete_service(args):
+    restadmin = _create_rest_admin_service(args)
 
+    print("Deleting service...")
+    restadmin.delete_service(args.name, args.type, args.folder)
+    print("Service deleted.")
+
+def map_to_sddraft(args):
     import arcpy
-    args.mxd = _format_path(args.mxd, "Path to map document is invalid.")
+
+    _parse_args_mxd(args)
 
     if not args.json == None:
         args.json = _format_path(args.json, "Path to JSON settings file is invalid.")
@@ -81,6 +88,36 @@ def map_to_sddraft(args):
 
     print("Done, SD Draft created at: {0}".format(args.output))
 
+def publish_sd(args):
+    import arcpy
+
+    args.sd = _format_path(args.sd, "Path to the service definition is invalid.")
+    args.conn = _format_path(args.conn, "Path to ArcGIS Server Connection file is invalid.")
+
+    print("Publishing service definition...")
+
+    arcpy.UploadServiceDefinition_server(args.sd, args.conn)
+
+    print("Done, service definition published.")
+
+def save_a_copy(args):
+    import arcpy
+
+    _parse_args_mxd(args)
+    args.output = _format_output(args.output)
+
+    print("Opening map document: {0}".format(args.mxd))
+    map = arcpy.mapping.MapDocument(args.mxd)
+
+    print("Saving a copy to: {0}".format(args.output))
+    if args.version == None:
+        map.saveACopy(args.output)
+    else:
+        map.saveACopy(args.output, args.version)
+
+    print("Done.")
+    
+
 def sddraft_to_sd(args):
     args.sddraft = _format_path(args.sddraft, "Path to service definition draft is invalid.")
 
@@ -104,23 +141,10 @@ def sddraft_to_sd(args):
 
     print("Done, service definition created at: {0}".format(args.output))
 
-def publish_sd(args):
-
-    import arcpy
-
-    args.sd = _format_path(args.sd, "Path to the service definition is invalid.")
-    args.conn = _format_path(args.conn, "Path to ArcGIS Server Connection file is invalid.")
-
-    print("Publishing service definition...")
-
-    arcpy.UploadServiceDefinition_server(args.sd, args.conn)
-
-    print("Done, service definition published.")
-
 def update_data(args):
     import arcpy
 
-    args.mxd = _format_path(args.mxd, "Path to the map document is invalid.")
+    _parse_args_mxd(args)
     args.data = _format_path(args.data, "Path to the JSON-encoded data sources file is invalid.")
     
     with open(args.data, "r") as data_file:
@@ -133,7 +157,7 @@ def update_data(args):
     arcpyext.mapping.change_data_sources(map, datasources_list)
 
     print("Saving map document...")
-    if not args.output == None:
+    if args.output != None:
         args.output = _format_output(args.output)
         if path.exists(args.output):
             remove(args.output)
@@ -161,13 +185,6 @@ def stop_service(args):
     print("Stopping service...")
     serv.stop_service()
     print("Service stopped.")
-
-def delete_service(args):
-    restadmin = _create_rest_admin_service(args)
-
-    print("Deleting service...")
-    restadmin.delete_service(args.name, args.type, args.folder)
-    print("Service deleted.")
 
 def _create_argument_groups(parser, req_group = True, opt_group = True, flags_group = True, include_help_flag = True):
     """Creates three argument groups for use by all sub-parsers, the required group, the optional group, and the 
@@ -230,6 +247,23 @@ def _create_parser_agsrest_servop_parent(parents):
         help = "The folder that the service resides in.")
 
     return agsrest_servop_parent
+
+def _create_parser_save_copy(parser):
+    parser_copy = parser.add_parser("copy", add_help = False,
+        help = "Saves a copy of an ArcGIS map document, optionally in a different output version.")
+    parser_copy.set_defaults(func = save_a_copy)
+
+    group_req, group_opt, group_flags = _create_argument_groups(parser_copy)
+
+    group_req.add_argument("-m", "--mxd",
+        help = "File path to the map document (*.mxd) to copy.")
+
+    group_req.add_argument("-o", "--output",
+        help = "The path on which to save the copy of the map document.")
+
+    group_opt.add_argument("-v", "--version", type=str, choices=["9.0", "9.1", "9.2", "9.3", "10.0", "10.1"],
+        help = "The output version number for the saved copy.")
+
 
 def _create_parser_delete(parser, parents):
     """Creates a sub-parser for deleting an ArcGIS Server Service."""
@@ -352,6 +386,9 @@ def _format_output(filepath):
 
     return filepath
 
+def _parse_args_mxd(args):
+    args.mxd = _format_path(args.mxd, "Path to map document is invalid.")
+
 def main():
     if "arcpyext" in sys.modules:
         arcpy_available = True
@@ -370,6 +407,7 @@ def main():
         _create_parser_sddraft(subparsers)
         _create_parser_sd(subparsers)
         _create_parser_publish(subparsers)
+        _create_parser_save_copy(subparsers)
 
     # Pure RESTful based parsers (always loaded, no licence required)
     agsrest_parser_parent = _create_parser_agsrest_parent()
