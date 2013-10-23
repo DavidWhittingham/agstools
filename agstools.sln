@@ -6,6 +6,7 @@ EndProject
 Project("{888888A0-9F3D-457C-B088-3A5042F75D52}") = "arcpyext", "arcpyext\Source\arcpyext\arcpyext.pyproj", "{3810E691-FCC0-463F-8DB2-DA7896AC1335}"
 EndProject
 Project("{888888A0-9F3D-457C-B088-3A5042F75D52}") = "agstools", "agstools\Source\agstools\agstools.pyproj", "{37A1D236-0299-4209-849B-8A4690D8CF3F}"
+Project("{888888A0-9F3D-457C-B088-3A5042F75D52}") = "agstools", "Source\agstools\agstools.pyproj", "{37A1D236-0299-4209-849B-8A4690D8CF3F}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
