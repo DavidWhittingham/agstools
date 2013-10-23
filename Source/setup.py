@@ -1,20 +1,25 @@
-from ez_setup import use_setuptools
-use_setuptools()
-    
 import agstools
 
-from setuptools import setup, find_packages
+try:
+    from setuptools import setup
+except ImportError:
+    from distutils.core import setup
+	
+packages = [
+	"agstools"
+]
+	
 setup(
     name = "agstools",
     version = agstools.__version__,
-    packages = find_packages(),
+    packages = packages,
     
     #dependencies
     install_requires = ["agsadmin"],
     
     #misc files to include
     package_data = {
-        "": ["license.txt", "authors.txt"]
+        "": ["LICENSE"]
     },
 
     #automatic script creation
@@ -29,6 +34,14 @@ setup(
     description = "ArcGIS Server 10.1+ Administrative Command-Line Tools",
     license = "BSD 3-Clause",
     keywords = "arcgis esri",
+    url = "https://github.com/DavidWhittingham/agstools",
+    classifiers=(
+        "Development Status :: 4 - Beta",
+        "Intended Audience :: Developers",
+        "Natural Language :: English",
+        "License :: OSI Approved :: BSD License",
+        "Programming Language :: Python :: 2.7"
+    ),
     
     zip_safe = True
 )
