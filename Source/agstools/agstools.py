@@ -4,15 +4,18 @@ from json import load
 from os import path, remove, makedirs
 from shutil import copy2, move
 import argparse
+import imp
 import sys
 import time
 
 import agsadmin
 
+ARCPYEXT_AVAILABLE = True
+
 try:
-    import arcpyext
-except:
-    pass
+    imp.find_module('arcpyext')
+except ImportError:
+    ARCPYEXT_AVAILABLE = False
 
 REQUIRED_PARAMS_TEXT = "Required Arguments"
 OPTIONAL_PARAMS_TEXT = "Optional Arguments"
@@ -46,6 +49,7 @@ def delete_service(args):
 
 def map_to_sddraft(args):
     import arcpy
+    import arcpyext
 
     _parse_args_mxd(args)
 
@@ -119,6 +123,8 @@ def save_a_copy(args):
     
 
 def sddraft_to_sd(args):
+    import arcpyext
+    
     args.sddraft = _format_path(args.sddraft, "Path to service definition draft is invalid.")
 
     print("Creating service definition from draft...")
@@ -143,6 +149,7 @@ def sddraft_to_sd(args):
 
 def update_data(args):
     import arcpy
+    import arcpyext
 
     _parse_args_mxd(args)
     args.data = _format_path(args.data, "Path to the JSON-encoded data sources file is invalid.")
@@ -390,11 +397,9 @@ def _parse_args_mxd(args):
     args.mxd = _format_path(args.mxd, "Path to map document is invalid.")
 
 def main():
-    if "arcpyext" in sys.modules:
-        arcpy_available = True
+    if ARCPYEXT_AVAILABLE:
         parser_description = "Helper tools for performing ArcGIS Server administrative functions."
     else:
-        arcpy_available = False
         parser_description = "Helper tools for performing ArcGIS Server administrative functions. \
             ArcPy is not available, functions limited to RESTful service interaction only!"
 
@@ -402,7 +407,7 @@ def main():
     subparsers = parser.add_subparsers()
 
     # ArcPyExt-based Parsers, only added if ArcPyExt loaded (i.e. ArcPy is available/licenced)
-    if arcpy_available:
+    if ARCPYEXT_AVAILABLE:
         _create_parser_update_data(subparsers)
         _create_parser_sddraft(subparsers)
         _create_parser_sd(subparsers)
