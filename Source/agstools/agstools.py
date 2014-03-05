@@ -1,26 +1,32 @@
 from ast import literal_eval
 from datetime import timedelta
 from json import load
-from os import path, remove, makedirs
+from os import path, remove, makedirs, listdir
 from shutil import copy2, move
 import argparse
 import imp
+import fnmatch
 import sys
 import time
 
-import agsadmin
-
 ARCPYEXT_AVAILABLE = True
+AGSADMIN_AVAILABLE = True
 
 try:
-    imp.find_module('arcpyext')
+    imp.find_module("arcpyext")
 except ImportError:
     ARCPYEXT_AVAILABLE = False
+    
+try:
+    imp.find_module("agsadmin")
+except ImportError:
+    AGSADMIN_AVAILABLE = False
 
-REQUIRED_PARAMS_TEXT = "Required Arguments"
-OPTIONAL_PARAMS_TEXT = "Optional Arguments"
-FLAGS_TEXT = "Optional Flags"
-HELP_FLAG_TEXT = "Show this help message and exit"
+REQUIRED_PARAMS_TEXT = "required arguments"
+OPTIONAL_PARAMS_TEXT = "optional arguments"
+FLAGS_TEXT = "optional flags"
+HELP_FLAG_TEXT = "Show this help message and exit."
+MXD_FILETYPE_PATH_FILTER = "*.mxd"
 
 class StoreNameValuePairs(argparse.Action):
     """Simple argparse Action class for taking multiple string values in the form a=b and returning a dictionary. 
@@ -30,7 +36,7 @@ class StoreNameValuePairs(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
         values_dict = {}
         for pair in values:
-            k, v = pair.split('=')
+            k, v = pair.split("=")
             try:
                 v = literal_eval(v)
             except SyntaxError:
@@ -40,158 +46,164 @@ class StoreNameValuePairs(argparse.Action):
 
         setattr(namespace, self.dest, values_dict)
 
-def delete_service(args):
-    restadmin = _create_rest_admin_service(args)
-
+def delete_service(restadmin, name, type, folder):
     print("Deleting service...")
-    restadmin.delete_service(args.name, args.type, args.folder)
+    restadmin.delete_service(name, type, folder)
     print("Service deleted.")
 
-def map_to_sddraft(args):
+def mxd_to_sddraft(mxd, output = None, title = None, folder = None, leave_existing = False, settings = {}):
     import arcpy
     import arcpyext
+    
+    mxd = _open_map_document(mxd)
+        
+    if title == None:
+        title = path.splitext(path.basename(mxd.filePath))[0].strip().replace(" ", "_")
+        
+    if output == None:
+        output = "{0}.sddraft".format(path.splitext(mxd.filePath)[0])
+        
+    if not "replace_existing" in settings:
+        settings["replace_existing"] = not leave_existing
+        
+    if not "keep_cache" in settings:
+        settings["keep_cache"] = True
+        
+    sd_draft = arcpyext.mapping.convert_map_to_service_draft(mxd, output, title, folder)
+    
+    def set_arg(sd_draft, k, v):
+        if hasattr(sd_draft, k):
+            setattr(sd_draft, k, v)
 
-    _parse_args_mxd(args)
-
-    if not args.json == None:
-        args.json = _format_path(args.json, "Path to JSON settings file is invalid.")
-
-        with open(args.json) as settings_file:
-            args.settings = dict(load(settings_file).items() + args.settings.items())
-
-    if not args.leaveExisting and not "replace_existing" in args.settings:
-        args.settings["replace_existing"] = True
-
-    print("Creating SDDraft from Map Document...")
-
-    if args.title == None:
-        args.title = path.splitext(path.basename(args.mxd))[0].strip().replace(" ", "_")
-
-    if args.output == None:
-        args.output = "{0}.sddraft".format(path.splitext(args.mxd)[0])
-    else:
-        args.output = _format_output(args.output)
-
-    map = arcpy.mapping.MapDocument(args.mxd)
-    sd_draft = arcpyext.mapping.convert_map_to_service_draft(map, args.output, args.title, folder_name = args.folder)
-
-    if not args.settings == None:
-        def set_arg(sd_draft, k, v):
-            if hasattr(sd_draft, k):
-                setattr(sd_draft, k, v)
-
-        # min instances must be set before max instances, so we get it out of the way
-        if "min_instances" in args.settings:
-            set_arg(sd_draft, "min_instances", args.settings["min_instances"])
-            del args.settings["min_instances"]
-      
-        for k, v in args.settings.items():
-            set_arg(sd_draft, k, v)
+    # min instances must be set before max instances, so we get it out of the way
+    if "min_instances" in settings:
+        set_arg(sd_draft, "min_instances", settings["min_instances"])
+        del settings["min_instances"]
+  
+    for k, v in settings.items():
+        set_arg(sd_draft, k, v)
 
     sd_draft.save()
+    
+    print("Done, SD Draft created at: {0}".format(output))
 
-    print("Done, SD Draft created at: {0}".format(args.output))
-
-def publish_sd(args):
+def publish_sd(sd, conn):
     import arcpy
 
-    args.sd = _format_path(args.sd, "Path to the service definition is invalid.")
-    args.conn = _format_path(args.conn, "Path to ArcGIS Server Connection file is invalid.")
+    sd = _format_input_path(sd, "Path to the service definition is invalid.")
+    conn = _format_input_path(conn, "Path to ArcGIS Server Connection file is invalid.")
 
     print("Publishing service definition...")
 
-    arcpy.UploadServiceDefinition_server(args.sd, args.conn)
+    arcpy.UploadServiceDefinition_server(sd, conn)
 
     print("Done, service definition published.")
 
-def save_a_copy(args):
+def save_a_copy(mxd, output_path, version = None):
     import arcpy
 
-    _parse_args_mxd(args)
-    args.output = _format_output(args.output)
+    mxd = _open_map_document(mxd)
+    
+    output_path = _format_output_path(output_path)
 
-    print("Opening map document: {0}".format(args.mxd))
-    map = arcpy.mapping.MapDocument(args.mxd)
+    print("Opening map document: {0}".format(mxd))
+    map = arcpy.mapping.MapDocument(mxd)
 
-    print("Saving a copy to: {0}".format(args.output))
-    if args.version == None:
-        map.saveACopy(args.output)
+    print("Saving a copy to: {0}".format(output_path))
+    if version == None:
+        map.saveACopy(output_path)
     else:
-        map.saveACopy(args.output, args.version)
+        map.saveACopy(output_path, version)
 
     print("Done.")
-    
 
-def sddraft_to_sd(args):
+def sddraft_to_sd(sddraft, output = None, persist = False):
     import arcpyext
     
-    args.sddraft = _format_path(args.sddraft, "Path to service definition draft is invalid.")
-
     print("Creating service definition from draft...")
+    
+    sddraft = _format_input_path(sddraft, "Path to service definition draft is invalid.")
 
-    if args.output == None:
-        args.output = "{0}.sd".format(path.splitext(args.sddraft)[0])
+    if output == None:
+        output = "{0}.sd".format(path.splitext(sddraft)[0])
     else:
-        args.output = _format_output(args.output)
+        output = _format_output_path(output)
 
-    if args.persist == True:
-        sddraft_backup = "{0}.sddraft.bak".format(path.splitext(args.sddraft)[0])
-        copy2(args.sddraft, sddraft_backup)
+    if persist == True:
+        sd_draft_backup_path = "{0}.sddraft.bak".format(path.splitext(sddraft)[0])
+        copy2(sddraft, sd_draft_backup_path)
 
-    sd_draft = arcpyext.mapping.SDDraft(args.sddraft)
+    sd_draft = arcpyext.mapping.SDDraft(sddraft)
 
-    arcpyext.mapping.convert_service_draft_to_staged_service(sd_draft, args.output)
+    arcpyext.mapping.convert_service_draft_to_staged_service(sd_draft, output)
 
-    if args.persist == True:
-        move(sddraft_backup, args.sddraft)
+    if persist == True:
+        move(sd_draft_backup_path, sddraft)
 
-    print("Done, service definition created at: {0}".format(args.output))
+    print("Done, service definition created at: {0}".format(output))
 
-def update_data(args):
+def update_data(mxd, data_sources_list, output = None):
     import arcpy
     import arcpyext
 
-    _parse_args_mxd(args)
-    args.data = _format_path(args.data, "Path to the JSON-encoded data sources file is invalid.")
-    
-    with open(args.data, "r") as data_file:
-        datasources_list = load(data_file)
-
-    print("Opening Map Document...")
-    map = arcpy.mapping.MapDocument(args.mxd)
+    mxd = _open_map_document(mxd)
 
     print("Updating data sources...")
-    arcpyext.mapping.change_data_sources(map, datasources_list)
+    arcpyext.mapping.change_data_sources(mxd, data_sources_list)
 
     print("Saving map document...")
-    if args.output != None:
-        args.output = _format_output(args.output)
-        if path.exists(args.output):
-            remove(args.output)
+    if output_path != None:
+        output_path = _format_output_path(output_path)
+        if path.exists(output_path):
+            remove(output_path)
 
-        map.saveACopy(args.output)
+        mxd.saveACopy(output_path)
     else:
-        map.save()
+        mxd.save()
 
     print("Done.")
+    
+def update_data_folder(input_path, output_path, config):
+    import arcpy
+    import arcpyext
+    
+    mxd_list = _filter_uptodate_mxds(input_path, output_path)
 
-def start_service(args):
-    restadmin = _create_rest_admin_service(args)
+    for mxd_in in mxd_list:
+        mxd_out = _format_output_path(path.join(output_path, mxd_in))
+        mxd_in = path.join(input_path, mxd_in)
 
-    serv = restadmin.get_service(args.name, args.type, args.folder)
+        print("Loading map document: {0}".format(mxd_in))
+        mxd_in = arcpy.mapping.MapDocument(mxd_in)
+        
+        print("Listing data sources for replacement...")
+        lds = arcpyext.mapping.list_document_data_sources(mxd_in)
+        rdsl = arcpyext.mapping.create_replacement_data_sources_list(lds, config["dataSourceTemplates"])
+        
+        print("Replacing data sources...")
+        arcpyext.mapping.change_data_sources(mxd_in, rdsl)
+        
+        print("Saving MXD to: {0}".format(mxd_out))
+        print("...")
+        mxd_in.saveACopy(mxd_out)
+        print("Done.")
+
+def start_service(restadmin, name, type, folder):
+    serv = restadmin.get_service(name, type, folder)
 
     print("Starting service...")
     serv.start_service()
     print("Service started.")
 
-def stop_service(args):
-    restadmin = _create_rest_admin_service(args)
-
-    serv = restadmin.get_service(args.name, args.type, args.folder)
+def stop_service(restadmin, name, type, folder):
+    serv = restadmin.get_service(name, type, folder)
 
     print("Stopping service...")
     serv.stop_service()
     print("Service stopped.")
+
+def _compare_last_modified(base_file, other_file):
+    return path.getmtime(other_file) - path.getmtime(base_file)
 
 def _create_argument_groups(parser, req_group = True, opt_group = True, flags_group = True, include_help_flag = True):
     """Creates three argument groups for use by all sub-parsers, the required group, the optional group, and the 
@@ -210,13 +222,22 @@ def _create_argument_groups(parser, req_group = True, opt_group = True, flags_gr
         flags = None
 
     return (req, opt, flags)
+    
+def _create_output_path(output_path):
+    """Creates the directory structure for a given path if it does not already exist."""
+    if not path.exists(output_path):
+        makedirs(output_path)
 
 def _create_parser_agsrest_parent():
     parser_agsrest_parent = argparse.ArgumentParser(add_help = False)
+    parser_agsrest_parent.set_defaults(
+        parse_for_restadmin = True,
+        utc_delta = time.timezone / -60 if time.daylight == 0 else time.altzone / -60,
+        instance = 'arcgis',
+        port = 6080
+    )
 
     group_req, group_opt, group_flags = _create_argument_groups(parser_agsrest_parent, include_help_flag = False)
-
-    group_req = parser_agsrest_parent.add_argument_group("Required Arguments")
     group_req.add_argument("-s", "--server", required = True,
         help = "The host name of the ArcGIS Server (e.g. myarcgisserver.local).")
     group_req.add_argument("-u", "--username", required = True,
@@ -230,7 +251,7 @@ def _create_parser_agsrest_parent():
         help = "The port number to use when communicating with the ArcGIS Server instance (default is 6080).")
     group_opt.add_argument("--proxy", 
         help = "Address of a proxy server, if one is required to communicate with the ArcGIS Server.")
-    group_opt.add_argument("--timedelta", type=int,
+    group_opt.add_argument("--utc-delta", type=int,
         help = "The number of minutes (plus/minus) your server is from UTC. This is used when calculating key expiry \
             time when performing non-SSL encrypted communications. Defaults to your local offset.")
 
@@ -241,7 +262,7 @@ def _create_parser_agsrest_parent():
 
 def _create_parser_agsrest_servop_parent(parents):
     agsrest_servop_parent = argparse.ArgumentParser(add_help = False, parents = parents)
-    agsrest_servop_parent.set_defaults(func = start_service)
+    agsrest_servop_parent.set_defaults(func = _execute_args, lib_func = start_service)
 
     group_req, group_opt, group_flags = _create_argument_groups(agsrest_servop_parent)
 
@@ -258,31 +279,30 @@ def _create_parser_agsrest_servop_parent(parents):
 def _create_parser_save_copy(parser):
     parser_copy = parser.add_parser("copy", add_help = False,
         help = "Saves a copy of an ArcGIS map document, optionally in a different output version.")
-    parser_copy.set_defaults(func = save_a_copy)
+    parser_copy.set_defaults(func = _execute_args, lib_func = save_a_copy)
 
     group_req, group_opt, group_flags = _create_argument_groups(parser_copy)
 
-    group_req.add_argument("-m", "--mxd",
+    group_req.add_argument("-m", "--mxd", required = True,
         help = "File path to the map document (*.mxd) to copy.")
 
-    group_req.add_argument("-o", "--output",
+    group_req.add_argument("-o", "--output", required = True,
         help = "The path on which to save the copy of the map document.")
 
     group_opt.add_argument("-v", "--version", type=str, choices=["9.0", "9.1", "9.2", "9.3", "10.0", "10.1"],
         help = "The output version number for the saved copy.")
-
 
 def _create_parser_delete(parser, parents):
     """Creates a sub-parser for deleting an ArcGIS Server Service."""
 
     parser_delete = parser.add_parser("delete", parents = parents, add_help = False,
         help = "Deletes a service on an ArcGIS Server instance.")
-    parser_delete.set_defaults(func = delete_service)
+    parser_delete.set_defaults(func = _execute_args, lib_func = delete_service)
     
 def _create_parser_publish(parser):
     parser_publish = parser.add_parser("publish", add_help = False,
         help = "Publishes a service definition to an ArcGIS Server instance.")
-    parser_publish.set_defaults(func = publish_sd)
+    parser_publish.set_defaults(func = _execute_args, lib_func = publish_sd)
 
     group_req, group_opt, group_flags = _create_argument_groups(parser_publish, opt_group = False)
 
@@ -295,7 +315,7 @@ def _create_parser_sd(parser):
     parser_sd = parser.add_parser("sd", add_help = False,
         help = "Stages an ArcGIS Server service definition draft into a service definition ready for publishing (this \
             will by default delete the draft).")
-    parser_sd.set_defaults(func = sddraft_to_sd)
+    parser_sd.set_defaults(func = _execute_args, lib_func = sddraft_to_sd)
 
     group_req, group_opt, group_flags = _create_argument_groups(parser_sd)
 
@@ -312,7 +332,7 @@ def _create_parser_sd(parser):
 def _create_parser_sddraft(parser):
     parser_sddraft = parser.add_parser("sddraft", add_help = False,
         help = "Converts a map document (*.mxd) to an ArcGIS Server service definition draft.")
-    parser_sddraft.set_defaults(func = map_to_sddraft)
+    parser_sddraft.set_defaults(func = _execute_args, lib_func = mxd_to_sddraft)
 
     group_req, group_opt, group_flags = _create_argument_groups(parser_sddraft)
 
@@ -327,64 +347,153 @@ def _create_parser_sddraft(parser):
             MXD (use '*.sddraft' as extension).")
     group_opt.add_argument("-f", "--folder", required = False,
         help = "The server folder to publish the service to.  If left out, defaults to the root directory.")
-    group_opt.add_argument("-j", "--json", required = False,
-        help = "File path to a JSON-formatted file that contains key/value pairs of the additional properties you wish \
-            to set on the service definition draft.")
     group_opt.add_argument("-s", "--settings", default = {}, required = False, nargs = "*", action = StoreNameValuePairs,
         help = "Additional key/value settings (in the form 'key=value') that will be processed by the SD Draft creator.")
     
-    group_flags.add_argument("-l", "--leaveExisting", default = False, action = "store_true",
+    group_flags.add_argument("-l", "--leave-existing", default = False, action = "store_true",
         help = "Prevents an existing service from being overwritten.")
 
 def _create_parser_start(parser, parents):
     parser_start = parser.add_parser("start", parents = parents, add_help = False,
         help = "Starts a service on an ArcGIS Server instance.")
-    parser_start.set_defaults(func = start_service)
+    parser_start.set_defaults(func = _execute_args, lib_func = start_service)
 
 def _create_parser_stop(parser, parents):
     parser_stop = parser.add_parser("stop", parents = parents, add_help = False,
         help = "Stops a service on an ArcGIS Server instance.")
-    parser_stop.set_defaults(func = stop_service)
+    parser_stop.set_defaults(func = _execute_args, lib_func = stop_service)
 
 def _create_parser_update_data(parser):
     """Creates a sub-parser for updating the data sources of a map document."""
 
     parser_update_data = parser.add_parser("updatedata", add_help = False,
         help = "Updates the workspace (data source) of each layer in a map document.")
-    parser_update_data.set_defaults(func = update_data)
+    parser_update_data.set_defaults(func = _execute_args, lib_func = update_data, _json_list = ["data_sources_list"])
 
     group_req, group_opt, group_flags = _create_argument_groups(parser_update_data)
 
     group_req.add_argument("-m", "--mxd", required = True,
         help = "The map document to be updated.")
-    group_req.add_argument("-d", "--data", required = True,
+    group_req.add_argument("-d", "--data-sources-list", required = True,
         help = "The path to a JSON-encoded document containing a list of workspaces, one per layer. \
             Group layers or layers that shouldn't be updated should have a value of 'null'.")
 
-    group_opt.add_argument("-o", "--output", 
+    group_opt.add_argument("-o", "--output-path", 
         help = "The path to a location you would like the map document saved to, \
             in the event that you do not wish to overwrite the original.")
 
-def _create_rest_admin_service(args):
-    if args.port == None:
-        args.port = 6080
 
-    if args.timedelta == None:
-        args.timedelta = time.timezone / -60 if time.daylight == 0 else time.altzone / -60
+def _create_parser_multi_update_data(parser):
+    """Creates a sub-parser for updating the data sources of a map document."""
 
-    if not args.proxy == None:
-        args.proxy = {"http": args.proxy, "https": args.proxy}
+    help_info = "Updates the workspace (data source) of each layer in a map document, for every map document within a given folder."
+    
+    parser_update_data = parser.add_parser("multiupdatedata", add_help = False,
+        help = help_info, description = help_info,
+        formatter_class = argparse.RawDescriptionHelpFormatter)
+    parser_update_data.set_defaults(func = _update_data_folder, lib_func = update_data_folder)
 
-    return agsadmin.RestAdmin(args.server, args.username, args.password, 
-        utc_delta = timedelta(minutes = args.timedelta), proxies = args.proxy, port = args.port)
+    group_req, group_opt, group_flags = _create_argument_groups(parser_update_data)
+    
+    group_req.add_argument("-i", "--input-path", 
+        help = "The absolute or relative path to the directory containing all MXDs to be updated.")
+        
+    group_req.add_argument("-o", "--output-path", 
+        help = "The absolute or relative path to the directory to output MXDs to.")
+        
+    group_req.add_argument("-c", "--config", 
+        help = "The absolute or relative path to the JSON-encoded configuration data (see below).")
+            
+    parser_update_data.epilog = """
+-------------------------
+CONFIGURATION INFORMATION
+-------------------------
+The JSON-encoded configuration file contains up to two keys.  The first, 
+'dataSourceTemplates', provides a mechanism for replacing layer data sources
+using templates.  The second, "mapSettings" is optional, and allows you to 
+pass custom settings to the SDDraft configuration.
 
-def _format_path(filepath, message = None):
+Data Source Templates
+---------------------
+The 'dataSourceTemplates' key contains an array of objects, with each one 
+taking the form of a dictionary containing two keys, "matchCriteria" and 
+"dataSource", both of which are also dictionaries.
+
+Match criteria is a dictionary of key/value pairs that are compared to the  
+details of layers/table views.  If all listed match criteria are contained in 
+the layer/table view details, the template is a match and the date source 
+described in the "dataSource" key will be used to replace the table/layer 
+views data source.  Valid match keys for layers are 'name', 'longName', 
+'datasetName', 'dataSource', 'serviceType', 'userName', 'server', 'service', 
+and 'database'.  Valid match keys for table views are 'datasetName', 
+'dataSource', 'definitionQuery', and 'workspacePath'.  String values are 
+case sensitive.
+
+Data source describes the replacement data source for a layer. As a minimum, 
+it should provide a "workspacePath" key that is the path (relative or absolute 
+to executing path) to a valid Arc workspace.  Optionally, the data source 
+dictionary also supports 'datasetName', 'workspaceType', and 'schema' keys, 
+allowing you to change these data source properties simultaneously.
+
+Map Settings
+------------
+Map settings is a dictionary of values fed into the 'arcpyext' SDDraft object, 
+allowing you to customise the SDDraft on publish.  Each key represents a 
+settable property, allowing you to set properties on the SDDraft object.
+
+Example
+-------
+{
+    "mapSettings": {
+        "example_map": {
+            "enabled_extensions": ["WMSServer"],
+            "anti_aliasing_mode": "Fast"
+        }
+    },
+    "dataSourceTemplates": [
+        {
+            "matchCriteria": {
+                "server": "foo.server.local",
+                "userName": "bar"
+            },
+            "dataSource": {
+                "workspacePath": "./path/to/conn.sde"
+            }
+        }
+    ]
+}
+"""
+
+def _create_rest_admin_service(server, username, password, instance, port, utc_delta, proxy, ssl):
+    import agsadmin
+
+    if not proxy == None:
+        proxy = {"http": proxy, "https": proxy}
+
+    return agsadmin.RestAdmin(server, username, password, instance_name = instance, utc_delta = timedelta(minutes = utc_delta), 
+        proxies = proxy, port = port, use_ssl = ssl)
+
+def _execute_args(args):
+    args, func = _namespace_to_dict(args)
+    func(**args)
+    
+def _filter_uptodate_mxds(input_path, output_path):
+    """Compares the modified timestamps of MXDs in one folder to MXDs in another and returns a list of MXDs from the 
+    input path that are more recent then those on the output path."""
+    mxd_list = _get_file_list(input_path, MXD_FILETYPE_PATH_FILTER)
+    
+    return [filename for filename in mxd_list if (
+                not path.exists(path.join(output_path, filename)) or 
+                (_compare_last_modified(path.join(input_path, filename), path.join(output_path, filename)) < 0))
+    ]
+
+def _format_input_path(filepath, message = None):
     if not path.exists(filepath):
         raise IOError(message)
     else:
         return path.abspath(filepath)
-
-def _format_output(filepath):
+        
+def _format_output_path(filepath):
     filepath = path.abspath(filepath)
 
     dir = path.dirname(filepath)
@@ -392,18 +501,105 @@ def _format_output(filepath):
         makedirs(dir)
 
     return filepath
+    
+def _get_file_list(dir_path, path_filter):
+    dir_path = _format_input_path(dir_path, "MXD Directory does not exist or could not be found.")
+    path_list = []
 
-def _parse_args_mxd(args):
-    args.mxd = _format_path(args.mxd, "Path to map document is invalid.")
+    def _list_files_in_dir(dir):
+        for f in fnmatch.filter(filter(path.isfile, [path.join(dir, f) for f in listdir(dir)]), path_filter):
+            path_list.append(path.relpath(f, dir_path))
+
+    _list_files_in_dir(dir_path)
+    sub_dir_list = filter(path.isdir, [path.join(dir_path, sd) for sd in listdir(dir_path)])
+
+    for sub_dir in sub_dir_list:
+        _list_files_in_dir(sub_dir)
+
+    return path_list
+
+def _namespace_to_dict(args):
+    keys_to_remove = ("lib_func", "func", "server", "username", "password", "instance", "port", "utc_delta", "proxy",
+                      "ssl", "parse_for_restadmin", "_json_files")
+
+    args = vars(args)
+    func = args["lib_func"]
+    
+    if "_json_files" in args and args["_json_files"]:
+        for prop_name in args["_json_files"]:
+            if args[prop_name] == None:
+                continue
+            args[prop_name] = _read_json_file(args[prop_name])
+
+    if "parse_for_restadmin" in args and args["parse_for_restadmin"]:
+        restadmin = _create_rest_admin_service(
+            args["server"],
+            args["username"],
+            args["password"], 
+            args["instance"],
+            args["port"],
+            args["utc_delta"], 
+            args["proxy"],
+            args["ssl"]
+        )
+        args["restadmin"] = restadmin
+
+    for key in keys_to_remove:
+        args.pop(key, None)
+    return (args, func)
+    
+def _nomalize_paths_in_config(config):
+    if config.has_key("dataSourceTemplates"):
+        for template in config["dataSourceTemplates"]:
+            if template["dataSource"].has_key("workspacePath"):
+                try:
+                    template["dataSource"]["workspacePath"] = _format_input_path(template["dataSource"]["workspacePath"])
+                except IOError:
+                    print("Could not find full path for workspace path '{0}' in '{1}' config.".format(
+                        template["dataSource"]["workspacePath"], environment))
+    return config
+
+def _open_map_document(mxd):
+    import arcpy
+    if type(mxd) is str:
+        mxd = arcpy.mapping.MapDocument(_format_input_path(mxd))
+    return mxd
+    
+def _read_json_file(file_path):
+    file_path = _format_input_path(file_path, "Path to the JSON-encoded data sources file is invalid.")
+    
+    with open(file_path, "r") as data_file:
+        json = load(data_file)
+    
+    return json
+    
+def _update_data_folder(args):
+    args, func = _namespace_to_dict(args)
+
+    #format input paths
+    for key in ("config", "input_path"):
+        args[key] = _format_input_path(args[key], "The path provided for '{0}' is invalid.".format(key))
+
+    with open(args["config"], "r") as data_file:
+        args["config"] = _nomalize_paths_in_config(load(data_file))
+
+    func(**args)
 
 def main():
-    if ARCPYEXT_AVAILABLE:
-        parser_description = "Helper tools for performing ArcGIS Server administrative functions."
-    else:
-        parser_description = "Helper tools for performing ArcGIS Server administrative functions. \
-            ArcPy is not available, functions limited to RESTful service interaction only!"
+    parser_description = "Helper tools for performing ArcGIS Server administrative functions."
+    
+    if not ARCPYEXT_AVAILABLE and not AGSADMIN_AVAILABLE:
+        parser_description = "{0} No compatible libraries are installed, all functions are disabled. \
+            Please install arcpyext or agsadmin.".format(parser_description)
+    elif not ARCPYEXT_AVAILABLE:
+        parser_description = "{0} 'arcpy'/'arcpyext' are not available, functions limited to RESTful service \
+            interaction only!".format(parser_description)
+    elif not AGSADMIN_AVAILABLE:
+        parser_description = "{0} 'agsadmin' is not available, functions limited to mapping and \
+            data functions.".format(parser_description)
 
-    parser = argparse.ArgumentParser(description = parser_description)
+    parser = argparse.ArgumentParser(description = parser_description, add_help = False)
+    parser.add_argument("-h", "--help", action = "help", help = HELP_FLAG_TEXT)
     subparsers = parser.add_subparsers()
 
     # ArcPyExt-based Parsers, only added if ArcPyExt loaded (i.e. ArcPy is available/licenced)
@@ -413,15 +609,16 @@ def main():
         _create_parser_sd(subparsers)
         _create_parser_publish(subparsers)
         _create_parser_save_copy(subparsers)
+        _create_parser_multi_update_data(subparsers)
+        
+    if AGSADMIN_AVAILABLE:
+        # Pure RESTful based parsers (always loaded, no licence required)
+        agsrest_parser_parent = _create_parser_agsrest_parent()
+        agsrest_servop_parent = _create_parser_agsrest_servop_parent([agsrest_parser_parent])
 
-    # Pure RESTful based parsers (always loaded, no licence required)
-    agsrest_parser_parent = _create_parser_agsrest_parent()
-    agsrest_servop_parent = _create_parser_agsrest_servop_parent([agsrest_parser_parent])
-
-    _create_parser_start(subparsers, [agsrest_servop_parent])
-    _create_parser_stop(subparsers, [agsrest_servop_parent])
-    _create_parser_delete(subparsers, [agsrest_servop_parent])
-
+        _create_parser_start(subparsers, [agsrest_servop_parent])
+        _create_parser_stop(subparsers, [agsrest_servop_parent])
+        _create_parser_delete(subparsers, [agsrest_servop_parent])
 
     if len(sys.argv) == 1:
         parser.print_help()
