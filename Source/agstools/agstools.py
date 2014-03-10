@@ -2,11 +2,12 @@ from ast import literal_eval
 from datetime import timedelta
 from json import load
 from os import path, remove, makedirs, listdir
-from shutil import copy2, move
+from shutil import copy2, move, rmtree
 import argparse
 import imp
 import fnmatch
 import sys
+import tempfile
 import time
 
 ARCPYEXT_AVAILABLE = True
@@ -30,10 +31,10 @@ MXD_FILETYPE_PATH_FILTER = "*.mxd"
 
 class StoreNameValuePairs(argparse.Action):
     """Simple argparse Action class for taking multiple string values in the form a=b and returning a dictionary. 
-    Literal values (i.e. booleans, numbers) will attempt to be converted to there appropriate Python types. 
+    Literal values (i.e. booleans, numbers) will be converted to there appropriate Python types. 
     On either side of the equals sign, double quotes can be used to contain a string that includes white space."""
 
-    def __call__(self, parser, namespace, values, option_string=None):
+    def __call__(self, parser, namespace, values, option_string = None):
         values_dict = {}
         for pair in values:
             k, v = pair.split("=")
@@ -142,14 +143,25 @@ def sddraft_to_sd(sddraft, output = None, persist = False):
 
     print("Done, service definition created at: {0}".format(output))
 
-def update_data(mxd, data_sources_list, output = None):
+def update_data(mxd, data_sources_list, output_path = None, reload_symbology = False):
     import arcpy
     import arcpyext
 
     mxd = _open_map_document(mxd)
+    working_folder = path.join(tempfile.gettempdir(), "agstools")
+    symbology_path = path.join(working_folder, "symbology")
+    
+    if (reload_symbology):
+        if path.exists(symbology_path):
+            rmtree(symbology_path)
+        _save_layers(mxd, symbology_path)
 
     print("Updating data sources...")
     arcpyext.mapping.change_data_sources(mxd, data_sources_list)
+    
+    if (reload_symbology):
+        _load_symbology_from_layers(mxd, symbology_path)
+        rmtree(symbology_path)
 
     print("Saving map document...")
     if output_path != None:
@@ -160,10 +172,13 @@ def update_data(mxd, data_sources_list, output = None):
         mxd.saveACopy(output_path)
     else:
         mxd.save()
+        
+    if path.exists(working_folder):
+        rmtree(working_folder)
 
     print("Done.")
-    
-def update_data_folder(input_path, output_path, config):
+
+def update_data_folder(input_path, output_path, config, reload_symbology = False):
     import arcpy
     import arcpyext
     
@@ -180,13 +195,7 @@ def update_data_folder(input_path, output_path, config):
         lds = arcpyext.mapping.list_document_data_sources(mxd_in)
         rdsl = arcpyext.mapping.create_replacement_data_sources_list(lds, config["dataSourceTemplates"])
         
-        print("Replacing data sources...")
-        arcpyext.mapping.change_data_sources(mxd_in, rdsl)
-        
-        print("Saving MXD to: {0}".format(mxd_out))
-        print("...")
-        mxd_in.saveACopy(mxd_out)
-        print("Done.")
+        update_data(mxd_in, rdsl, mxd_out, reload_symbology)
 
 def start_service(restadmin, name, type, folder):
     serv = restadmin.get_service(name, type, folder)
@@ -382,7 +391,6 @@ def _create_parser_update_data(parser):
         help = "The path to a location you would like the map document saved to, \
             in the event that you do not wish to overwrite the original.")
 
-
 def _create_parser_multi_update_data(parser):
     """Creates a sub-parser for updating the data sources of a map document."""
 
@@ -403,15 +411,17 @@ def _create_parser_multi_update_data(parser):
         
     group_req.add_argument("-c", "--config", 
         help = "The absolute or relative path to the JSON-encoded configuration data (see below).")
+        
+    group_flags.add_argument("--reload-symbology", action = "store_true",
+        help = "Forces the output MXD to have its symbology set based on the input MXD (ArcMap will drop symbology if the underlying data source is even slightly different).")
             
     parser_update_data.epilog = """
 -------------------------
 CONFIGURATION INFORMATION
 -------------------------
-The JSON-encoded configuration file contains up to two keys.  The first, 
-'dataSourceTemplates', provides a mechanism for replacing layer data sources
-using templates.  The second, "mapSettings" is optional, and allows you to 
-pass custom settings to the SDDraft configuration.
+The JSON-encoded configuration file contains one mandatory key, 
+'dataSourceTemplates', which provides a mechanism for replacing layer data 
+sources using templates.
 
 Data Source Templates
 ---------------------
@@ -435,21 +445,9 @@ to executing path) to a valid Arc workspace.  Optionally, the data source
 dictionary also supports 'datasetName', 'workspaceType', and 'schema' keys, 
 allowing you to change these data source properties simultaneously.
 
-Map Settings
-------------
-Map settings is a dictionary of values fed into the 'arcpyext' SDDraft object, 
-allowing you to customise the SDDraft on publish.  Each key represents a 
-settable property, allowing you to set properties on the SDDraft object.
-
 Example
 -------
 {
-    "mapSettings": {
-        "example_map": {
-            "enabled_extensions": ["WMSServer"],
-            "anti_aliasing_mode": "Fast"
-        }
-    },
     "dataSourceTemplates": [
         {
             "matchCriteria": {
@@ -483,8 +481,8 @@ def _filter_uptodate_mxds(input_path, output_path):
     mxd_list = _get_file_list(input_path, MXD_FILETYPE_PATH_FILTER)
     
     return [filename for filename in mxd_list if (
-                not path.exists(path.join(output_path, filename)) or 
-                (_compare_last_modified(path.join(input_path, filename), path.join(output_path, filename)) < 0))
+        not path.exists(path.join(output_path, filename)) or 
+        (_compare_last_modified(path.join(input_path, filename), path.join(output_path, filename)) < 0))
     ]
 
 def _format_input_path(filepath, message = None):
@@ -518,6 +516,20 @@ def _get_file_list(dir_path, path_filter):
 
     return path_list
 
+def _load_symbology_from_layers(mxd, layer_path):
+    import arcpy
+    
+    layers = [[layer for layer in arcpy.mapping.ListLayers(df)] for df in arcpy.mapping.ListDataFrames(mxd)]
+    
+    for (df_no, layers_in_df) in enumerate(layers):
+        df_path = path.join(layer_path, str(df_no))
+        df = arcpy.mapping.ListDataFrames(mxd)[df_no]
+        
+        for (layer_no, layer) in enumerate(layers_in_df):
+            layer_input_path = path.join(df_path, str(layer_no) + ".lyr")
+            source_layer = arcpy.mapping.Layer(layer_input_path)
+            arcpy.mapping.UpdateLayer(df, layer, source_layer, True)
+    
 def _namespace_to_dict(args):
     keys_to_remove = ("lib_func", "func", "server", "username", "password", "instance", "port", "utc_delta", "proxy",
                       "ssl", "parse_for_restadmin", "_json_files")
@@ -572,6 +584,18 @@ def _read_json_file(file_path):
         json = load(data_file)
     
     return json
+    
+def _save_layers(mxd, output_path):
+    import arcpy
+    
+    layers = [[layer for layer in arcpy.mapping.ListLayers(df)] for df in arcpy.mapping.ListDataFrames(mxd)]
+    
+    for (df_no, df) in enumerate(layers):
+        df_path = path.join(output_path, str(df_no))
+        
+        for (layer_no, layer) in enumerate(df):
+            layer_output_path = _format_output_path(path.join(df_path, str(layer_no) + ".lyr"))
+            layer.saveACopy (layer_output_path)
     
 def _update_data_folder(args):
     args, func = _namespace_to_dict(args)
