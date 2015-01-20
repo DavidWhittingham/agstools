@@ -100,14 +100,14 @@ def delete_service(restadmin, name, type, folder):
     restadmin.delete_service(name, type, folder)
     print("Service deleted.")
 
-def mxd_to_sddraft(mxd, output = None, title = None, folder = None, leave_existing = False, settings = {}):
+def mxd_to_sddraft(mxd, output = None, name = None, folder = None, leave_existing = False, settings = {}):
     import arcpy
     import arcpyext
 
     mxd = _open_map_document(mxd)
 
-    if title == None:
-        title = path.splitext(path.basename(mxd.filePath))[0].strip().replace(" ", "_")
+    if name == None:
+        name = path.splitext(path.basename(mxd.filePath))[0].strip().replace(" ", "_")
 
     if output == None:
         output = "{0}.sddraft".format(path.splitext(mxd.filePath)[0])
@@ -118,7 +118,7 @@ def mxd_to_sddraft(mxd, output = None, title = None, folder = None, leave_existi
     if not "keep_cache" in settings:
         settings["keep_cache"] = True
 
-    sd_draft = arcpyext.mapping.convert_map_to_service_draft(mxd, output, title, folder)
+    sd_draft = arcpyext.mapping.convert_map_to_service_draft(mxd, output, name, folder)
 
     def set_arg(sd_draft, k, v):
         if hasattr(sd_draft, k):
@@ -385,16 +385,17 @@ def _create_parser_sd(parser):
 
 def _create_parser_sddraft(parser):
     parser_sddraft = parser.add_parser("sddraft", add_help = False,
-        help = "Converts a map document (*.mxd) to an ArcGIS Server service definition draft.")
-    parser_sddraft.set_defaults(func = _execute_args, lib_func = mxd_to_sddraft)
+        help = "Converts a map document (*.mxd) to an ArcGIS Server service definition draft.",
+        formatter_class = argparse.RawDescriptionHelpFormatter)
+    parser_sddraft.set_defaults(func = _mxd_to_sddraft, lib_func = mxd_to_sddraft, _json_files = ["config"])
 
     group_req, group_opt, group_flags = _create_argument_groups(parser_sddraft)
 
     group_req.add_argument("-m", "--mxd", required = True,
         help = "Path to the map document to be converted.")
 
-    group_opt.add_argument("-t", "--title", required = False,
-        help = "Title of the published service.  Defaults to the map document file name (spaces in the file name will \
+    group_opt.add_argument("-n", "--name", required = False,
+        help = "Name of the published service.  Defaults to the map document file name (spaces in the file name will \
             be replaced by underscores).")
     group_opt.add_argument("-o", "--output", required = False,
         help = "The path to save the SD Draft to. If left out, defaults to saving with the same filename/path as the \
@@ -403,9 +404,84 @@ def _create_parser_sddraft(parser):
         help = "The server folder to publish the service to.  If left out, defaults to the root directory.")
     group_opt.add_argument("-s", "--settings", default = {}, required = False, nargs = "*", action = StoreNameValuePairs,
         help = "Additional key/value settings (in the form 'key=value') that will be processed by the SD Draft creator.")
+    group_req.add_argument("-c", "--config",
+        help = "The absolute or relative path to the JSON-encoded configuration data (see below).")
 
     group_flags.add_argument("-l", "--leave-existing", default = False, action = "store_true",
         help = "Prevents an existing service from being overwritten.")
+
+    parser_sddraft.epilog = """
+-------------------------
+CONFIGURATION INFORMATION
+-------------------------
+The JSON-encoded configuration file contains one mandatory key,
+'serviceSettings', which provides a mechanism for passing in all service 
+settings into the Service Definition Draft generation process via a single
+file.
+
+Service Settings
+---------------------
+The 'serviceSettings' key contains a dictionary of key/value pairs with keys
+corresponding to the name of properties on the arcpy.mapping.SDDraft class, and
+values being the data that will be applied to each property on the class.  All
+values are optional, but any supplied value will supersede any value provided
+by one of the command-line parameters.
+
+Example
+-------
+In the below example, options that have more than one valid option are enclosed
+in parentheses and separated by the pipe symbol.
+
+For the "enabled_extensions" and "feature_access_enabled_operations"
+parameters, any combination of the listed options may be used, but the value
+must be an array containing zero or more options.  All options are case 
+sensitive.
+
+For more information on each of the settings, see the SDDraft class.
+
+{
+    "serviceSettings": {
+        "anti_aliasing_mode": ("None | "Fastest" | "Fast" | "Normal" | "Best"),
+        "cluster": "clusterNameHere",
+        "description": "Service description goes here.",
+        "disable_identify_relates": (true | false),
+        "enable_dynamic_layers": (true | false),
+        "enabled_extensions": [
+            "FeatureServer", 
+            "MobileServer", 
+            "WMSServer", 
+            "KmlServer", 
+            "NAServer", 
+            "WFSServer", 
+            "WCSServer", 
+            "SchematicsServer"
+        ],
+        "feature_access_enabled_operations": [
+            "Create",
+            "Query",
+            "Update",
+            "Delete",
+            "Sync"
+        ],
+        "high_isolation": (true | false),
+        "idle_timeout": 600,
+        "instances_per_container": 4,
+        "keep_cache": true,
+        "max_instances": 4,
+        "max_record_count": 1000,
+        "min_instances": 1,
+        "name": "ServiceNameGoesHere",
+        "recycle_interval": 24,
+        "recycle_start_time": "23:00",
+        "replace_existing": true,
+        "schema_locking_enabled": (true | false),
+        "summary": "Map service summary goes here.",
+        "text_anti_aliasing_mode": ("None" | "Normal" | "Force"),
+        "usage_timeout": 60,
+        "wait_timeout": 600
+    }
+}
+"""
 
 def _create_parser_start(parser, parents):
     parser_start = parser.add_parser("start", parents = parents, add_help = False,
@@ -534,6 +610,18 @@ def _load_symbology_from_layers(mxd, layer_path):
             layer_input_path = path.join(df_path, str(layer_no) + ".lyr")
             source_layer = arcpy.mapping.Layer(layer_input_path)
             arcpy.mapping.UpdateLayer(df, layer, source_layer, True)
+            
+def _mxd_to_sddraft(args):
+    args, func = _namespace_to_dict(args)
+    
+    if "config" in args and args["config"] != None:
+        if "settings" in args and args["settings"] != None:
+            args["settings"].update(args["config"]["serviceSettings"])
+        else:
+            args["settings"] = args["config"]["serviceSettings"]
+        args.pop("config", None)
+    
+    func(**args)
 
 def _namespace_to_dict(args):
     keys_to_remove = ("lib_func", "func", "server", "username", "password", "instance", "port", "utc_delta", "proxy",
@@ -586,9 +674,7 @@ def _read_json_file(file_path):
     file_path = _format_input_path(file_path, "Path to the JSON-encoded data sources file is invalid.")
 
     with open(file_path, "r") as data_file:
-        json = load(data_file)
-
-    return json
+        return load(data_file)
 
 def _save_layers(mxd, output_path):
     import arcpy
