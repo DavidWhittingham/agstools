@@ -6,6 +6,8 @@ from shutil import copy2, move, rmtree
 import argparse
 import imp
 import fnmatch
+import random
+import string
 import sys
 import tempfile
 import time
@@ -201,6 +203,11 @@ def update_data(mxd, config, output_path = None, reload_symbology = False):
 
     mxd = _open_map_document(mxd)
     working_folder = path.join(tempfile.gettempdir(), "agstools")
+    
+    # we introduce a random element to the working folder path so that collisions don't occur when running in parallel
+    random_exec_num = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(12))
+    working_folder = path.join(working_folder, random_exec_num)
+    
     symbology_path = path.join(working_folder, "symbology")
 
     if (reload_symbology):
@@ -569,7 +576,9 @@ def _filter_uptodate_mxds(input_path, output_path):
         (_compare_last_modified(path.join(input_path, filename), path.join(output_path, filename)) < 0))
     ]
 
-def _format_input_path(filepath, message = None):
+def _format_input_path(filepath, message = None, work_dir = None):
+    if work_dir != None and path.isabs(filepath) == False:
+       filepath = path.normpath(path.join(path.abspath(work_dir), filepath))
     if not path.exists(filepath):
         raise IOError(message)
     else:
@@ -657,15 +666,18 @@ def _namespace_to_dict(args):
         args.pop(key, None)
     return (args, func)
 
-def _nomalize_paths_in_config(config):
+def _nomalize_paths_in_config(config, filepath):
     if config.has_key("dataSourceTemplates"):
         for template in config["dataSourceTemplates"]:
             if template["dataSource"].has_key("workspacePath"):
                 try:
-                    template["dataSource"]["workspacePath"] = _format_input_path(template["dataSource"]["workspacePath"])
+                    config_work_dir = path.dirname(filepath)
+                    template["dataSource"]["workspacePath"] = _format_input_path(
+                        template["dataSource"]["workspacePath"],
+                        work_dir = config_work_dir)
                 except IOError:
-                    print("Could not find full path for workspace path '{0}' in '{1}' config.".format(
-                        template["dataSource"]["workspacePath"], environment))
+                    print("Could not find full path for workspace path '{0}' in config.".format(
+                        template["dataSource"]["workspacePath"]))
     return config
 
 def _open_map_document(mxd):
@@ -696,7 +708,7 @@ def _update_data(args):
     args, func = _namespace_to_dict(args)
 
     with open(args["config"], "r") as data_file:
-        args["config"] = _nomalize_paths_in_config(load(data_file))
+        args["config"] = _nomalize_paths_in_config(load(data_file), args["config"])
         
     func(**args)
 
@@ -708,7 +720,7 @@ def _update_data_folder(args):
         args[key] = _format_input_path(args[key], "The path provided for '{0}' is invalid.".format(key))
 
     with open(args["config"], "r") as data_file:
-        args["config"] = _nomalize_paths_in_config(load(data_file))
+        args["config"] = _nomalize_paths_in_config(load(data_file), args["config"])
 
     func(**args)
 
