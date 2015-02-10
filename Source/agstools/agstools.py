@@ -379,7 +379,7 @@ def _create_parser_sd(parser):
     group_req.add_argument("-s", "--sddraft", required = True,
         help = "File path to the service definition draft (*.sddraft) to finalize.")
 
-    group_opt.add_argument("-o", "--output", required = False,
+    group_opt.add_argument("-o", "--output",
         help = "The path on which to save the staged service definition. If left out, defaults to saving with the \
             same filename/path as the draft (use '*.sd' as extension).")
 
@@ -397,18 +397,18 @@ def _create_parser_sddraft(parser):
     group_req.add_argument("-m", "--mxd", required = True,
         help = "Path to the map document to be converted.")
 
-    group_opt.add_argument("-n", "--name", required = False,
+    group_opt.add_argument("-n", "--name",
         help = "Name of the published service.  Defaults to the map document file name (spaces in the file name will \
             be replaced by underscores).")
-    group_opt.add_argument("-o", "--output", required = False,
+    group_opt.add_argument("-o", "--output",
         help = "The path to save the SD Draft to. If left out, defaults to saving with the same filename/path as the \
             MXD (use '*.sddraft' as extension).")
-    group_opt.add_argument("-f", "--folder", required = False,
+    group_opt.add_argument("-f", "--folder",
         help = "The server folder to publish the service to.  If left out, defaults to the root directory.")
-    group_opt.add_argument("-s", "--settings", default = {}, required = False, nargs = "*", action = StoreNameValuePairs,
+    group_opt.add_argument("-s", "--settings", default = {}, nargs = "*", action = StoreNameValuePairs,
         help = "Additional key/value settings (in the form 'key=value') that will be processed by the SD Draft creator.")
-    group_req.add_argument("-c", "--config",
-        help = "The absolute or relative path to the JSON-encoded configuration data (see below).")
+    group_opt.add_argument("-c", "--config",
+        help = "The absolute or relative path to a JSON-encoded configuration file (see below).")
 
     group_flags.add_argument("-l", "--leave-existing", default = False, action = "store_true",
         help = "Prevents an existing service from being overwritten.")
@@ -508,7 +508,7 @@ def _create_parser_update_data(parser):
 
     group_req.add_argument("-m", "--mxd", required = True,
         help = "The map document to be updated.")
-    group_req.add_argument("-c", "--config",
+    group_req.add_argument("-c", "--config", required = True,
         help = "The absolute or relative path to the JSON-encoded configuration data (see below).")
 
     group_opt.add_argument("-o", "--output-path",
@@ -532,13 +532,13 @@ def _create_parser_multi_update_data(parser):
 
     group_req, group_opt, group_flags = _create_argument_groups(parser_update_data)
 
-    group_req.add_argument("-i", "--input-path",
+    group_req.add_argument("-i", "--input-path", required = True,
         help = "The absolute or relative path to the directory containing all MXDs to be updated.")
 
-    group_req.add_argument("-o", "--output-path",
+    group_req.add_argument("-o", "--output-path", required = True,
         help = "The absolute or relative path to the directory to output MXDs to.")
 
-    group_req.add_argument("-c", "--config",
+    group_req.add_argument("-c", "--config", required = True,
         help = "The absolute or relative path to the JSON-encoded configuration data (see below).")
 
     group_flags.add_argument("-r", "--reload-symbology", action = "store_true",
@@ -617,11 +617,12 @@ def _load_symbology_from_layers(mxd, layer_path):
 def _mxd_to_sddraft(args):
     args, func = _namespace_to_dict(args)
     
-    if "config" in args and args["config"] != None:
-        if "settings" in args and args["settings"] != None:
-            args["settings"].update(args["config"]["serviceSettings"])
-        else:
-            args["settings"] = args["config"]["serviceSettings"]
+    if "config" in args:
+        if args["config"] != None:
+            if "settings" in args and args["settings"] != None:
+                args["settings"].update(args["config"]["serviceSettings"])
+            else:
+                args["settings"] = args["config"]["serviceSettings"]
         args.pop("config", None)
     
     func(**args)
