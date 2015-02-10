@@ -194,6 +194,10 @@ def sddraft_to_sd(sddraft, output = None, persist = False):
 def update_data(mxd, config, output_path = None, reload_symbology = False):
     import arcpy
     import arcpyext
+    
+    if output_path != None:
+        # have to do this at the top because opening a map document changes the working directory of the environment
+        output_path = _format_output_path(output_path)
 
     mxd = _open_map_document(mxd)
     working_folder = path.join(tempfile.gettempdir(), "agstools")
@@ -217,7 +221,6 @@ def update_data(mxd, config, output_path = None, reload_symbology = False):
 
     print("Saving map document...")
     if output_path != None:
-        output_path = _format_output_path(output_path)
         if path.exists(output_path):
             remove(output_path)
 
