@@ -4,19 +4,21 @@ except ImportError:
     from distutils.core import setup
 
 with open('agstools/_version.py') as fin: exec(fin)
-	
+
 packages = [
-	"agstools"
+	"agstools",
+    "agstools.arcpyext",
+    "agstools.agsadmin",
 ]
-	
+
 setup(
     name = "agstools",
     version = __version__,
     packages = packages,
-    
+
     #dependencies
     install_requires = ["agsadmin>=0.1.2"],
-    
+
     #misc files to include
     package_data = {
         "": ["LICENSE"]
@@ -25,10 +27,10 @@ setup(
     #automatic script creation
     entry_points = {
         "console_scripts": [
-            "agstools = agstools.agstools:main"
+            "agstools = agstools:main"
         ]
     },
-    
+
     #PyPI MetaData
     author = __author__,
     description = "ArcGIS Server 10.1+ Administrative Command-Line Tools",
@@ -42,6 +44,6 @@ setup(
         "License :: OSI Approved :: BSD License",
         "Programming Language :: Python :: 2.7"
     ),
-    
+
     zip_safe = True
 )

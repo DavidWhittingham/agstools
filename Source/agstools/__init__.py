@@ -5,4 +5,6 @@ Python Command-Line tool used to provide convenient access to administrative fun
 
 from ._version import *
 
-from agstools import *
+import agstools.arcpyext
+
+from ._agstools import *
