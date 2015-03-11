@@ -1,9 +1,9 @@
-import agstools
-
 try:
     from setuptools import setup
 except ImportError:
     from distutils.core import setup
+
+with open('agstools/_version.py') as fin: exec(fin)
 	
 packages = [
 	"agstools"
@@ -11,7 +11,7 @@ packages = [
 	
 setup(
     name = "agstools",
-    version = agstools.__version__,
+    version = __version__,
     packages = packages,
     
     #dependencies
@@ -30,7 +30,7 @@ setup(
     },
     
     #PyPI MetaData
-    author = agstools.__author__,
+    author = __author__,
     description = "ArcGIS Server 10.1+ Administrative Command-Line Tools",
     license = "BSD 3-Clause",
     keywords = "arcgis esri",
