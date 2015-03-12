@@ -11,6 +11,30 @@ from agstools._helpers import create_argument_groups, namespace_to_dict
 from agstools._agstools import DATA_SOURCE_TEMPLATES_HELP
 from ._mxd_helpers import open_map_document
 
+def create_parser_updatedata(parser):
+    """Creates a sub-parser for updating the data sources of a map document."""
+
+    parser_update_data = parser.add_parser("updatedata", add_help = False,
+        help = "Updates the workspace (data source) of each layer in a map document.",
+        formatter_class = argparse.RawDescriptionHelpFormatter)
+    parser_update_data.set_defaults(func = _process_arguments, lib_func = update_data)
+
+    group_req, group_opt, group_flags = create_argument_groups(parser_update_data)
+
+    group_req.add_argument("-m", "--mxd", required = True,
+        help = "The map document to be updated.")
+    group_req.add_argument("-c", "--config", required = True,
+        help = "The absolute or relative path to the JSON-encoded configuration data (see below).")
+
+    group_opt.add_argument("-o", "--output-path",
+        help = "The path to a location you would like the map document saved to, \
+            in the event that you do not wish to overwrite the original.")
+
+    group_flags.add_argument("-r", "--reload-symbology", action = "store_true",
+        help = "Forces the output MXD to have its symbology set based on the input MXD (ArcMap will drop symbology if the underlying data source is even slightly different).")
+
+    parser_update_data.epilog = DATA_SOURCE_TEMPLATES_HELP
+
 def update_data(mxd, config, output_path = None, reload_symbology = False):
     import arcpyext
 
@@ -57,30 +81,6 @@ def update_data(mxd, config, output_path = None, reload_symbology = False):
 
     print("Done.")
 
-def create_parser_updatedata(parser):
-    """Creates a sub-parser for updating the data sources of a map document."""
-
-    parser_update_data = parser.add_parser("updatedata", add_help = False,
-        help = "Updates the workspace (data source) of each layer in a map document.",
-        formatter_class = argparse.RawDescriptionHelpFormatter)
-    parser_update_data.set_defaults(func = _update_data, lib_func = update_data)
-
-    group_req, group_opt, group_flags = create_argument_groups(parser_update_data)
-
-    group_req.add_argument("-m", "--mxd", required = True,
-        help = "The map document to be updated.")
-    group_req.add_argument("-c", "--config", required = True,
-        help = "The absolute or relative path to the JSON-encoded configuration data (see below).")
-
-    group_opt.add_argument("-o", "--output-path",
-        help = "The path to a location you would like the map document saved to, \
-            in the event that you do not wish to overwrite the original.")
-
-    group_flags.add_argument("-r", "--reload-symbology", action = "store_true",
-        help = "Forces the output MXD to have its symbology set based on the input MXD (ArcMap will drop symbology if the underlying data source is even slightly different).")
-
-    parser_update_data.epilog = DATA_SOURCE_TEMPLATES_HELP
-
 def _load_symbology_from_layers(mxd, layer_path):
     import arcpy
 
@@ -107,7 +107,7 @@ def _save_layers(mxd, output_path):
             layer_output_path = format_output_path(path.join(df_path, str(layer_no) + ".lyr"))
             layer.saveACopy (layer_output_path)
 
-def _update_data(args):
+def _process_arguments(args):
     args, func = namespace_to_dict(args)
 
     with open(args["config"], "r") as data_file:

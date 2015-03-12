@@ -5,46 +5,11 @@ from agstools._helpers import create_argument_groups, namespace_to_dict
 from agstools._storenamevaluepairs import StoreNameValuePairs
 from ._mxd_helpers import open_map_document
 
-def mxd_to_sddraft(mxd, output = None, name = None, folder = None, leave_existing = False, settings = {}):
-    import arcpyext
-
-    mxd = open_map_document(mxd)
-
-    if name == None:
-        name = path.splitext(path.basename(mxd.filePath))[0].strip().replace(" ", "_")
-
-    if output == None:
-        output = "{0}.sddraft".format(path.splitext(mxd.filePath)[0])
-
-    if not "replace_existing" in settings:
-        settings["replace_existing"] = not leave_existing
-
-    if not "keep_cache" in settings:
-        settings["keep_cache"] = True
-
-    sd_draft = arcpyext.mapping.convert_map_to_service_draft(mxd, output, name, folder)
-
-    def set_arg(sd_draft, k, v):
-        if hasattr(sd_draft, k):
-            setattr(sd_draft, k, v)
-
-    # min instances must be set before max instances, so we get it out of the way
-    if "min_instances" in settings:
-        set_arg(sd_draft, "min_instances", settings["min_instances"])
-        del settings["min_instances"]
-
-    for k, v in settings.items():
-        set_arg(sd_draft, k, v)
-
-    sd_draft.save()
-
-    print("Done, SD Draft created at: {0}".format(output))
-
 def create_parser_sddraft(parser):
     parser_sddraft = parser.add_parser("sddraft", add_help = False,
         help = "Converts a map document (*.mxd) to an ArcGIS Server service definition draft.",
         formatter_class = argparse.RawDescriptionHelpFormatter)
-    parser_sddraft.set_defaults(func = _mxd_to_sddraft, lib_func = mxd_to_sddraft, _json_files = ["config"])
+    parser_sddraft.set_defaults(func = _process_arguments, lib_func = mxd_to_sddraft, _json_files = ["config"])
 
     group_req, group_opt, group_flags = create_argument_groups(parser_sddraft)
 
@@ -140,7 +105,42 @@ For more information on each of the settings, see the SDDraft class.
 }
 """
 
-def _mxd_to_sddraft(args):
+def mxd_to_sddraft(mxd, output = None, name = None, folder = None, leave_existing = False, settings = {}):
+    import arcpyext
+
+    mxd = open_map_document(mxd)
+
+    if name == None:
+        name = path.splitext(path.basename(mxd.filePath))[0].strip().replace(" ", "_")
+
+    if output == None:
+        output = "{0}.sddraft".format(path.splitext(mxd.filePath)[0])
+
+    if not "replace_existing" in settings:
+        settings["replace_existing"] = not leave_existing
+
+    if not "keep_cache" in settings:
+        settings["keep_cache"] = True
+
+    sd_draft = arcpyext.mapping.convert_map_to_service_draft(mxd, output, name, folder)
+
+    def set_arg(sd_draft, k, v):
+        if hasattr(sd_draft, k):
+            setattr(sd_draft, k, v)
+
+    # min instances must be set before max instances, so we get it out of the way
+    if "min_instances" in settings:
+        set_arg(sd_draft, "min_instances", settings["min_instances"])
+        del settings["min_instances"]
+
+    for k, v in settings.items():
+        set_arg(sd_draft, k, v)
+
+    sd_draft.save()
+
+    print("Done, SD Draft created at: {0}".format(output))
+
+def _process_arguments(args):
     args, func = namespace_to_dict(args)
 
     if "config" in args:

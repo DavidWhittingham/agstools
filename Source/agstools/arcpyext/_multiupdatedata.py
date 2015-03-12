@@ -17,7 +17,7 @@ def create_parser_multi_update_data(parser):
     parser_update_data = parser.add_parser("multiupdatedata", add_help = False,
         help = help_info, description = help_info,
         formatter_class = argparse.RawDescriptionHelpFormatter)
-    parser_update_data.set_defaults(func = _update_data_folder, lib_func = update_data_folder)
+    parser_update_data.set_defaults(func = _process_arguments, lib_func = update_data_folder)
 
     group_req, group_opt, group_flags = create_argument_groups(parser_update_data)
 
@@ -76,7 +76,7 @@ def _get_file_list(dir_path, path_filter):
 
     return path_list
 
-def _update_data_folder(args):
+def _process_arguments(args):
     args, func = namespace_to_dict(args)
 
     #format input paths
