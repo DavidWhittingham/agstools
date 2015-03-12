@@ -1,4 +1,4 @@
-from agstools._helpers import create_argument_groups, execute_args
+from agstools._helpers import create_argument_groups, execute_args, format_input_path
 
 def create_parser_publish(parser):
     parser_publish = parser.add_parser("publish", add_help = False,
@@ -15,8 +15,8 @@ def create_parser_publish(parser):
 def publish_sd(sd, conn):
     import arcpy
 
-    sd = _format_input_path(sd, "Path to the service definition is invalid.")
-    conn = _format_input_path(conn, "Path to ArcGIS Server Connection file is invalid.")
+    sd = format_input_path(sd, "Path to the service definition is invalid.")
+    conn = format_input_path(conn, "Path to ArcGIS Server Connection file is invalid.")
 
     print("Publishing service definition...")
 

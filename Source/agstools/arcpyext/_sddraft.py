@@ -3,11 +3,12 @@ import argparse
 from os import path
 from agstools._helpers import create_argument_groups, namespace_to_dict
 from agstools._storenamevaluepairs import StoreNameValuePairs
+from ._mxd_helpers import open_map_document
 
 def mxd_to_sddraft(mxd, output = None, name = None, folder = None, leave_existing = False, settings = {}):
     import arcpyext
 
-    mxd = _open_map_document(mxd)
+    mxd = open_map_document(mxd)
 
     if name == None:
         name = path.splitext(path.basename(mxd.filePath))[0].strip().replace(" ", "_")
