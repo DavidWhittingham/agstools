@@ -5,7 +5,7 @@ Command-line tool for managing ArcGIS (in particular ArcGIS Server), including p
 
 Depends on *arcpyext* (https://github.com/DavidWhittingham/arcpyext) and *agsadmin* (https://github.com/DavidWhittingham/agsadmin) for functionality.  *agsadmin* doesn't require any ArcGIS software or licence, but *arcpyext* does.  Tested/maintained on Python 2.7.
 
-Once installed, simply run ``agstools`` from a shell prompt (assuming the Python scripts directory is your ``PATH`` environment variable).
+Once installed, simply run ``agstools`` from a shell prompt (assuming the Python scripts directory is in your ``PATH`` environment variable).
 
 Help is available on the command line tool with the ``-h``/``--help`` switch.  The main help screen is reproduced below::
 
