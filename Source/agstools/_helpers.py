@@ -31,10 +31,10 @@ def execute_args(args):
     args, func = namespace_to_dict(args)
     func(**args)
 
-def format_input_path(filepath, message = None, work_dir = None):
+def format_input_path(filepath, message = None, work_dir = None, check_exists = True):
     if work_dir != None and path.isabs(filepath) == False:
        filepath = path.normpath(path.join(path.abspath(work_dir), filepath))
-    if not path.exists(filepath):
+    if check_exists and not path.exists(filepath):
         raise IOError(message)
     else:
         return path.abspath(filepath)
@@ -62,7 +62,7 @@ def namespace_to_dict(args):
         for prop_name in args["_json_files"]:
             if args[prop_name] == None:
                 continue
-            args[prop_name] = _read_json_file(args[prop_name])
+            args[prop_name] = read_json_file(args[prop_name])
 
     if "parse_for_restadmin" in args and args["parse_for_restadmin"]:
         restadmin = _create_rest_admin_service(
@@ -104,7 +104,7 @@ def _create_rest_admin_service(server, username, password, instance, port, utc_d
     return agsadmin.RestAdmin(server, username, password, instance_name = instance, utc_delta = timedelta(minutes = utc_delta),
         proxies = proxy, port = port, use_ssl = ssl)
 
-def _read_json_file(file_path):
+def read_json_file(file_path):
     file_path = format_input_path(file_path, "Path to the JSON-encoded data sources file is invalid.")
 
     with open(file_path, "r") as data_file:

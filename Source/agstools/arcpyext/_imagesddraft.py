@@ -5,15 +5,15 @@ import re
 
 from os import path
 
-from agstools._helpers import create_argument_groups, namespace_to_dict
+from agstools._helpers import create_argument_groups, namespace_to_dict, format_input_path, format_output_path, read_json_file
 from agstools._storenamevaluepairs import StoreNameValuePairs
 
 def create_image_sddraft(input, output, name = None, folder = None, leave_existing = False, settings = {}):
     import arcpy
     import arcpyext
 
-    input = path.abspath(input)
-    output = path.abspath(output)
+    input = format_input_path(input, check_exists = False)
+    output = format_output_path(output)
 
     if name == None:
         path_pair = path.splitext(input)
@@ -56,7 +56,7 @@ def create_parser_image_sddraft(parser):
         description = "Creates a service definition draft for an Image Service from a raster layer.\n\n" +
             "One of the two arguments from the first optional set below must be provided.",
         formatter_class = argparse.RawDescriptionHelpFormatter)
-    parser_sddraft.set_defaults(func = _process_arguments, lib_func = create_image_sddraft, _json_files = ["config", "json_path"])
+    parser_sddraft.set_defaults(func = _process_arguments, lib_func = create_image_sddraft, _json_files = ["config"])
 
     group_req, group_opt, group_flags = create_argument_groups(parser_sddraft)
     group_mut_exc = parser_sddraft.add_mutually_exclusive_group(required = True)
@@ -175,7 +175,12 @@ def _process_arguments(args):
 
     if "json_path" in args:
         if args["json_path"] != None:
-            args["input"] = args["json_path"]["dataSource"]
+            work_dir = path.dirname(args["json_path"])
+            args["json_path"] = read_json_file(args["json_path"])
+            args["input"] = format_input_path(
+                        args["json_path"]["dataSource"],
+                        work_dir = work_dir,
+                        check_exists = False)
         args.pop("json_path", None)
 
     if "config" in args:
