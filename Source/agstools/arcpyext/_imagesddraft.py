@@ -1,3 +1,5 @@
+from __future__ import print_function, unicode_literals, absolute_import
+
 import argparse
 import re
 
@@ -9,29 +11,29 @@ from agstools._storenamevaluepairs import StoreNameValuePairs
 def create_image_sddraft(input, output, name = None, folder = None, leave_existing = False, settings = {}):
     import arcpy
     import arcpyext
-    
+
     input = path.abspath(input)
     output = path.abspath(output)
-    
+
     if name == None:
         path_pair = path.splitext(input)
         if path_pair[1].lower() == ".lyr":
             name = path_pair[0]
         else:
             name = path.basename(input)
-            
+
         name = re.sub('[^0-9a-zA-Z]+', '_', name)
-    
+
     if not "replace_existing" in settings:
         settings["replace_existing"] = not leave_existing
-    
+
     if not "keep_cache" in settings:
         settings["keep_cache"] = True
-    
+
     arcpy.CreateImageSDDraft(input, output, name, folder_name = folder, server_type = "ARCGIS_SERVER")
-    
+
     sd_draft = arcpyext.mapping.ImageSDDraft(output)
-    
+
     def set_arg(sd_draft, k, v):
         if hasattr(sd_draft, k):
             setattr(sd_draft, k, v)
@@ -170,7 +172,7 @@ For more information on each of the settings, see the ImageSDDraft class.
 
 def _process_arguments(args):
     args, func = namespace_to_dict(args)
-    
+
     if "json_path" in args:
         if args["json_path"] != None:
             args["input"] = args["json_path"]["dataSource"]
