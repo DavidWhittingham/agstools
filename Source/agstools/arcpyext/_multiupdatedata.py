@@ -8,6 +8,7 @@ from os import path, listdir
 
 from agstools._agstools import DATA_SOURCE_TEMPLATES_HELP
 from agstools._helpers import create_argument_groups, format_input_path, format_output_path, namespace_to_dict
+from ._updatedate import update_data
 
 MXD_FILETYPE_PATH_FILTER = "*.mxd"
 

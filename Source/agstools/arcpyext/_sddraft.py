@@ -46,7 +46,7 @@ file.
 Service Settings
 ---------------------
 The 'serviceSettings' key contains a dictionary of key/value pairs with keys
-corresponding to the name of properties on the arcpy.mapping.SDDraft class, and
+corresponding to the name of properties on the arcpy.mapping.MapSDDraft class, and
 values being the data that will be applied to each property on the class.  All
 values are optional, but any supplied value will supersede any value provided
 by one of the command-line parameters.
@@ -124,7 +124,7 @@ def mxd_to_sddraft(mxd, output = None, name = None, folder = None, leave_existin
     if not "keep_cache" in settings:
         settings["keep_cache"] = True
 
-    sd_draft = arcpyext.mapping.convert_map_to_service_draft(mxd, output, name, folder)
+    sd_draft = arcpyext.publishing.convert_map_to_service_draft(mxd, output, name, folder)
 
     def set_arg(sd_draft, k, v):
         if hasattr(sd_draft, k):

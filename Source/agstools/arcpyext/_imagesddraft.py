@@ -32,7 +32,7 @@ def create_image_sddraft(input, output, name = None, folder = None, leave_existi
 
     arcpy.CreateImageSDDraft(input, output, name, folder_name = folder, server_type = "ARCGIS_SERVER")
 
-    sd_draft = arcpyext.mapping.ImageSDDraft(output)
+    sd_draft = arcpyext.publishing.ImageSDDraft(output)
 
     def set_arg(sd_draft, k, v):
         if hasattr(sd_draft, k):
