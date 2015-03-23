@@ -2,9 +2,8 @@ from __future__ import print_function, unicode_literals, absolute_import
 
 import argparse
 import imp
+import os
 import re
-
-from os import path
 
 from agstools._helpers import create_argument_groups, namespace_to_dict, format_input_path, format_output_path, read_json_file
 from agstools._storenamevaluepairs import StoreNameValuePairs
@@ -15,15 +14,15 @@ def create_gp_sddraft(toolbox, result, output = None, name = None, folder = None
     import arcpyext
     
     # CreateGPSDDraft function doesn't work with relative paths, so we make sure they are absolute
-    toolbox = path.abspath(toolbox)
+    toolbox = os.path.abspath(toolbox)
 
     if output == None:
-        output = "{0}.sddraft".format(path.splitext(toolbox)[0])
+        output = "{0}.sddraft".format(os.path.splitext(toolbox)[0])
     else:
-        output = path.abspath(output)
+        output = os.path.abspath(output)
 
     if name == None:
-        path_pair = path.splitext(toolbox)
+        path_pair = os.path.splitext(toolbox)
         name = path_pair[0]
         name = re.sub('[^0-9a-zA-Z]+', '_', name)
 
@@ -134,9 +133,22 @@ For more information on each of the settings, see the ImageSDDraft class.
 def _process_arguments(args):
     args, func = namespace_to_dict(args)
 
-    # Turn tool runner script into result argument
-    tool_runner = imp.load_source("gptoolrunner", path.abspath(args["tool_runner"]))
-    args["result"] = tool_runner.RESULT
+    tool_runner_full_path = os.path.abspath(args["tool_runner"])
+    tool_runner_working_dir = os.path.dirname(tool_runner_full_path)
+    orig_working_dir = os.getcwd()
+    
+    # Python tool runner will probably use relative imports
+    # Working directory may not be the same though, so set working directory to compensate
+    os.chdir(tool_runner_working_dir)
+    
+    try:
+        # Turn tool runner script into result argument
+        tool_runner = imp.load_source("gptoolrunner", tool_runner_full_path)
+        args["result"] = tool_runner.RESULT
+    finally:
+        # Set working directory back to original, for consistency
+        os.chdir(orig_working_dir)
+        
     args.pop("tool_runner")
 
     args = config_to_settings(args)
