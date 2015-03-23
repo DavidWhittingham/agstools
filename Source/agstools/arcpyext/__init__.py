@@ -1,4 +1,5 @@
 from ._copy import create_parser_save_copy
+from ._gpsddraft import create_parser_gp_sddraft
 from ._imagesddraft import create_parser_image_sddraft
 from ._multiupdatedata import create_parser_multi_update_data
 from ._publish import create_parser_publish
@@ -9,6 +10,7 @@ from ._updatedata import create_parser_updatedata
 def load_parsers(subparsers):
     create_parser_sddraft(subparsers)
     create_parser_image_sddraft(subparsers)
+    create_parser_gp_sddraft(subparsers)
     create_parser_sd(subparsers)
     create_parser_updatedata(subparsers)
     create_parser_multi_update_data(subparsers)

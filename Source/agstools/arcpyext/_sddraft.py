@@ -5,7 +5,7 @@ import argparse
 from os import path
 from agstools._helpers import create_argument_groups, namespace_to_dict
 from agstools._storenamevaluepairs import StoreNameValuePairs
-from ._mxd_helpers import open_map_document
+from ._helpers import config_to_settings, open_map_document, set_settings_on_sddraft
 
 def create_parser_sddraft(parser):
     parser_sddraft = parser.add_parser("sddraft", add_help = False,
@@ -126,17 +126,7 @@ def mxd_to_sddraft(mxd, output = None, name = None, folder = None, leave_existin
 
     sd_draft = arcpyext.publishing.convert_map_to_service_draft(mxd, output, name, folder)
 
-    def set_arg(sd_draft, k, v):
-        if hasattr(sd_draft, k):
-            setattr(sd_draft, k, v)
-
-    # min instances must be set before max instances, so we get it out of the way
-    if "min_instances" in settings:
-        set_arg(sd_draft, "min_instances", settings["min_instances"])
-        del settings["min_instances"]
-
-    for k, v in settings.items():
-        set_arg(sd_draft, k, v)
+    set_settings_on_sddraft(sd_draft, settings)
 
     sd_draft.save()
 
@@ -145,12 +135,6 @@ def mxd_to_sddraft(mxd, output = None, name = None, folder = None, leave_existin
 def _process_arguments(args):
     args, func = namespace_to_dict(args)
 
-    if "config" in args:
-        if args["config"] != None:
-            if "settings" in args and args["settings"] != None:
-                args["settings"].update(args["config"]["serviceSettings"])
-            else:
-                args["settings"] = args["config"]["serviceSettings"]
-        args.pop("config", None)
+    args = config_to_settings(args)
 
     func(**args)

@@ -1,6 +1,7 @@
 from __future__ import print_function, unicode_literals, absolute_import
 
 import argparse
+import imp
 import re
 
 from os import path
@@ -9,31 +10,30 @@ from agstools._helpers import create_argument_groups, namespace_to_dict, format_
 from agstools._storenamevaluepairs import StoreNameValuePairs
 from ._helpers import config_to_settings, set_settings_on_sddraft
 
-def create_image_sddraft(input, output, name = None, folder = None, leave_existing = False, settings = {}):
+def create_gp_sddraft(toolbox, result, output = None, name = None, folder = None, leave_existing = False, settings = {}):
     import arcpy
     import arcpyext
+    
+    # CreateGPSDDraft function doesn't work with relative paths, so we make sure they are absolute
+    toolbox = path.abspath(toolbox)
 
-    input = format_input_path(input, check_exists = False)
-    output = format_output_path(output)
+    if output == None:
+        output = "{0}.sddraft".format(path.splitext(toolbox)[0])
+    else:
+        output = path.abspath(output)
 
     if name == None:
-        path_pair = path.splitext(input)
-        if path_pair[1].lower() == ".lyr":
-            name = path_pair[0]
-        else:
-            name = path.basename(input)
-
+        path_pair = path.splitext(toolbox)
+        name = path_pair[0]
         name = re.sub('[^0-9a-zA-Z]+', '_', name)
+
+    arcpy.CreateGPSDDraft(
+        result, output, name, server_type = "ARCGIS_SERVER", copy_data_to_server = False, folder_name = folder)
+
+    sd_draft = arcpyext.publishing.GPSDDraft(output)
 
     if not "replace_existing" in settings:
         settings["replace_existing"] = not leave_existing
-
-    if not "keep_cache" in settings:
-        settings["keep_cache"] = True
-
-    arcpy.CreateImageSDDraft(input, output, name, folder_name = folder, server_type = "ARCGIS_SERVER")
-
-    sd_draft = arcpyext.publishing.ImageSDDraft(output)
 
     set_settings_on_sddraft(sd_draft, settings)
 
@@ -41,31 +41,25 @@ def create_image_sddraft(input, output, name = None, folder = None, leave_existi
 
     print("Done, SD Draft created at: {0}".format(output))
 
-def create_parser_image_sddraft(parser):
-    parser_sddraft = parser.add_parser("imagesddraft", add_help = False,
-        help = "Creates a service definition draft for an Image Service from a raster layer.",
-        description = "Creates a service definition draft for an Image Service from a raster layer.\n\n" +
-            "One of the two arguments from the first optional set below must be provided.",
+def create_parser_gp_sddraft(parser):
+    parser_sddraft = parser.add_parser("gpsddraft", add_help = False,
+        help = "Creates a service definition draft for a Geo-processing Service from an ArcGIS Toolbox.",
+        description = "Creates a service definition draft for a Geo-processing Service from a (Python) Toolbox.",
         formatter_class = argparse.RawDescriptionHelpFormatter)
-    parser_sddraft.set_defaults(func = _process_arguments, lib_func = create_image_sddraft, _json_files = ["config"])
+    parser_sddraft.set_defaults(func = _process_arguments, lib_func = create_gp_sddraft, _json_files = ["config"])
 
     group_req, group_opt, group_flags = create_argument_groups(parser_sddraft)
-    group_mut_exc = parser_sddraft.add_mutually_exclusive_group(required = True)
 
-    # next line doesn't change the help output currently, hopefully bug will be fixed in argparse in the future
-    group_mut_exc.title = "optional arguments (at least one required)"
+    group_req.add_argument("-t", "--toolbox", required = True,
+        help = "Path to the Toolbox (*.tbx, *.pyt) to create the GP service from.")
 
-    group_mut_exc.add_argument("-i", "--input",
-        help = "Path to raster layer to create the image service from.")
-
-    group_mut_exc.add_argument("-j", "--json-path",
-        help = "Path to JSON-encoded file with a 'dataSource' field containing the raster path.")
-
-    group_req.add_argument("-o", "--output", required = True,
-        help = "The path to save the SD Draft to (use '*.sddraft' as extension).")
-
+    group_req.add_argument("-r", "--tool_runner", required = True,
+        help = "Path to a Python script that executes the tool.  The script must provide the tool result on a 'RESULT' variable/getter in the script's namespace.  A tool result is required in order to build a GP service.")
+    group_opt.add_argument("-o", "--output",
+        help = "The path to save the SD Draft to. If left out, defaults to saving with the same filename/path as the \
+            Toolbox (use '*.sddraft' as extension).")
     group_opt.add_argument("-n", "--name",
-        help = "Name of the published service.  Defaults to the raster layer name (spaces and periods in the name will \
+        help = "Name of the published service.  Defaults to the Toolbox name (spaces and periods in the name will \
             be replaced by underscores).")
     group_opt.add_argument("-f", "--folder",
         help = "The server folder to publish the service to.  If left out, defaults to the root directory.")
@@ -89,7 +83,7 @@ file.
 Service Settings
 ---------------------
 The 'serviceSettings' key contains a dictionary of key/value pairs with keys
-corresponding to the name of properties on the arcpy.publishing.ImageSDDraft
+corresponding to the name of properties on the arcpy.publishing.GPSDDraft
 class, and values being the data that will be applied to each property on the
 class.  All values are optional, but any supplied value will supersede any value
 provided by one of the command-line parameters.
@@ -111,48 +105,25 @@ For more information on each of the settings, see the ImageSDDraft class.
 
 {
     "serviceSettings": {
-        "allowed_compressions": ["None", "JPEG", "LZ77", "LERC"],
-        "allowed_mosaic_methods": [
-            "NorthWest",
-            "Center",
-            "LockRaster",
-            "ByAttribute",
-            "Nadir",
-            "Viewpoint",
-            "Seamline",
-            "None"
-        ],
-        "available_fields": (This is a list of available fields from the data source),
+        "capabilities": ["Uploads"],
         "cluster": "clusterNameHere",
-        "default_resampling_method": (This is one of the following integers:
-            0 - nearest neighbour,
-            1 - bilinear,
-            2 - cubic,
-            3 - majority
-        ),
         "description": "Service description goes here.",
         "enabled_extensions": [
-            "WMSServer",
-            "WCSServer",
-            "JPIPServer"
+            "WPSServer"
         ],
+        "execution_type": ("Synchronous" | "Asynchronous"),
         "high_isolation": (true | false),
         "idle_timeout": 600,
         "instances_per_container": 4,
-        "keep_cache": true,
-        "max_download_image_count": 20,
-        "max_download_size_limit": 2048,
-        "max_image_height": 4100,
-        "max_image_width": 15000,
         "max_instances": 4,
-        "max_mosaic_image_count": 20,
         "max_record_count": 1000,
         "min_instances": 1,
         "name": "ServiceNameGoesHere",
         "recycle_interval": 24,
         "recycle_start_time": "23:00",
         "replace_existing": true,
-        "return_jpgpng_as_jpg": (true | false),
+        "result_map_server": (true | false),
+        "show_messages": ("None" | "Error" | "Warning" | "Info"),
         "summary": "Map service summary goes here.",
         "usage_timeout": 60,
         "wait_timeout": 600
@@ -163,15 +134,10 @@ For more information on each of the settings, see the ImageSDDraft class.
 def _process_arguments(args):
     args, func = namespace_to_dict(args)
 
-    if "json_path" in args:
-        if args["json_path"] != None:
-            work_dir = path.dirname(args["json_path"])
-            args["json_path"] = read_json_file(args["json_path"])
-            args["input"] = format_input_path(
-                        args["json_path"]["dataSource"],
-                        work_dir = work_dir,
-                        check_exists = False)
-        args.pop("json_path", None)
+    # Turn tool runner script into result argument
+    tool_runner = imp.load_source("gptoolrunner", path.abspath(args["tool_runner"]))
+    args["result"] = tool_runner.RESULT
+    args.pop("tool_runner")
 
     args = config_to_settings(args)
 

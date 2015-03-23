@@ -11,7 +11,7 @@ from shutil import rmtree
 
 from agstools._helpers import create_argument_groups, namespace_to_dict
 from agstools._agstools import DATA_SOURCE_TEMPLATES_HELP
-from ._mxd_helpers import open_map_document
+from ._helpers import open_map_document
 
 def create_parser_updatedata(parser):
     """Creates a sub-parser for updating the data sources of a map document."""
