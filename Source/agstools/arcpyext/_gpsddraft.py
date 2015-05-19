@@ -7,7 +7,7 @@ import re
 
 from agstools._helpers import create_argument_groups, namespace_to_dict, format_input_path, format_output_path, read_json_file
 from agstools._storenamevaluepairs import StoreNameValuePairs
-from ._helpers import config_to_settings, set_settings_on_sddraft
+from ._helpers import config_to_settings
 
 def create_gp_sddraft(toolbox, result, output = None, name = None, folder = None, leave_existing = False, settings = {}):
     import arcpy
@@ -29,12 +29,12 @@ def create_gp_sddraft(toolbox, result, output = None, name = None, folder = None
     arcpy.CreateGPSDDraft(
         result, output, name, server_type = "ARCGIS_SERVER", copy_data_to_server = False, folder_name = folder)
 
-    sd_draft = arcpyext.publishing.GPSDDraft(output)
+    sd_draft = arcpyext.publishing.load_gp_sddraft(output)
 
     if not "replace_existing" in settings:
         settings["replace_existing"] = not leave_existing
 
-    set_settings_on_sddraft(sd_draft, settings)
+    sd_draft._set_props_from_dict(settings)
 
     sd_draft.save()
 
@@ -107,10 +107,8 @@ For more information on each of the settings, see the ImageSDDraft class.
         "capabilities": ["Uploads"],
         "cluster": "clusterNameHere",
         "description": "Service description goes here.",
-        "enabled_extensions": [
-            "WPSServer"
-        ],
         "execution_type": ("Synchronous" | "Asynchronous"),
+        "folder": "ExampleServices",
         "high_isolation": (true | false),
         "idle_timeout": 600,
         "instances_per_container": 4,
@@ -120,12 +118,44 @@ For more information on each of the settings, see the ImageSDDraft class.
         "name": "ServiceNameGoesHere",
         "recycle_interval": 24,
         "recycle_start_time": "23:00",
-        "replace_existing": true,
+        "replace_existing": (true | false),
         "result_map_server": (true | false),
-        "show_messages": ("None" | "Error" | "Warning" | "Info"),
         "summary": "Map service summary goes here.",
+        "show_messages": ("None" | "Error" | "Warning" | "Info"),
         "usage_timeout": 60,
-        "wait_timeout": 600
+        "wait_timeout": 600,
+        "wps_server": {
+            "abstract": "This is an example abstract.",
+            "access_constraints": "This service contains sensitive business data, INTERNAL USE ONLY.",
+            "address": "123 Fake St.",
+            "administrative_area": "State of FooBar",
+            "app_schema_prefix": "FooBar",
+            "city": "Faketown",
+            "contact_instructions": "Contact hours are 8am-6pm, UTC.",
+            "country": "Kingdom of FooBar",
+            "custom_get_capabilities": (true | false),
+            "email": "email@example.com",
+            "enable_transactions": (true | false),
+            "enabled": (true | false),
+            "facsimile": "+111 1111 1111",
+            "fees": "Service is free for non-commercial use.",
+            "hours_of_service": "Service operates 24/7.",
+            "individual_name": "Doe",
+            "keyword": "FooBar, Spatial",
+            "keywords_type": "Type Info",
+            "name": "FooBarService",
+            "organization": "Fake Corp.",
+            "path_to_custom_get_capabilities_files": "http://foobar.com/services/Wfs/Roads",
+            "phone": "+222 2222 2222",
+            "position_name": "WMS Services Contact Officer",
+            "post_code": 10532,
+            "profile": "WPS profile",
+            "provider_site": "http://www.foobar.com/",
+            "role": "role info",
+            "service_type": "WPS",
+            "service_type_version": "1.1.0",
+            "title": "FooBar Roads Service"
+        }
     }
 }
 """

@@ -18,16 +18,3 @@ def open_map_document(mxd):
     if isinstance(mxd, basestring):
         return arcpy.mapping.MapDocument(format_input_path(mxd))
     return mxd
-
-def set_settings_on_sddraft(sd_draft, settings):
-    def set_arg(sd_draft, k, v):
-        if hasattr(sd_draft, k):
-            setattr(sd_draft, k, v)
-
-    # min instances must be set before max instances, so we get it out of the way
-    if "min_instances" in settings:
-        set_arg(sd_draft, "min_instances", settings["min_instances"])
-        del settings["min_instances"]
-
-    for k, v in settings.items():
-        set_arg(sd_draft, k, v)
