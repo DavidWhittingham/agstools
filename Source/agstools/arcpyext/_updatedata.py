@@ -9,9 +9,10 @@ from json import load
 from os import path, remove
 from shutil import rmtree
 
-from agstools._helpers import create_argument_groups, namespace_to_dict, normalize_paths_in_config
+from agstools._helpers import create_argument_groups, namespace_to_dict, normalize_paths_in_config, format_output_path
 from agstools._agstools import DATA_SOURCE_TEMPLATES_HELP
 from ._helpers import open_map_document
+
 
 def create_parser_updatedata(parser):
     """Creates a sub-parser for updating the data sources of a map document."""
@@ -42,7 +43,7 @@ def update_data(mxd, config, output_path = None, reload_symbology = False):
 
     if output_path != None:
         # have to do this at the top because opening a map document changes the working directory of the environment
-        output_path = _format_output_path(output_path)
+        output_path = format_output_path(output_path)
 
     mxd = open_map_document(mxd)
     working_folder = path.join(tempfile.gettempdir(), "agstools")
