@@ -81,7 +81,7 @@ def namespace_to_dict(args):
         args.pop(key, None)
     return (args, func)
 
-def nomalize_paths_in_config(config, filepath):
+def normalize_paths_in_config(config, filepath):
     if config.has_key("dataSourceTemplates"):
         for template in config["dataSourceTemplates"]:
             if template["dataSource"].has_key("workspacePath"):

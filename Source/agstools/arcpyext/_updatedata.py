@@ -9,7 +9,7 @@ from json import load
 from os import path, remove
 from shutil import rmtree
 
-from agstools._helpers import create_argument_groups, namespace_to_dict
+from agstools._helpers import create_argument_groups, namespace_to_dict, normalize_paths_in_config
 from agstools._agstools import DATA_SOURCE_TEMPLATES_HELP
 from ._helpers import open_map_document
 
@@ -113,6 +113,6 @@ def _process_arguments(args):
     args, func = namespace_to_dict(args)
 
     with open(args["config"], "r") as data_file:
-        args["config"] = nomalize_paths_in_config(load(data_file), args["config"])
+        args["config"] = normalize_paths_in_config(load(data_file), args["config"])
 
     func(**args)
