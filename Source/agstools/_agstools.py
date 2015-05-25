@@ -70,8 +70,8 @@ def main():
     parser_description = "Helper tools for performing ArcGIS Server administrative functions."
 
     if not ARCPYEXT_AVAILABLE and not AGSADMIN_AVAILABLE:
-        parser_description = "{0} No compatible libraries are installed, all functions are disabled. \
-            Please install arcpyext or agsadmin.".format(parser_description)
+        parser_description = "{0} No compatible libraries are installed, only basic functions from arcpy are \
+            available.  Please install arcpyext or agsadmin for additional functionality.".format(parser_description)
     elif not ARCPYEXT_AVAILABLE:
         parser_description = "{0} 'arcpy'/'arcpyext' are not available, functions limited to RESTful service \
             interaction only!".format(parser_description)
@@ -84,7 +84,7 @@ def main():
     subparsers = parser.add_subparsers()
 
     if ARCPYEXT_AVAILABLE:
-        # arcpyext-based Parsers, only added if arcpyext is available
+        # arcpyext-based parsers, only added if arcpyext is available
         import agstools.arcpyext
         agstools.arcpyext.load_parsers(subparsers)
 
@@ -92,6 +92,10 @@ def main():
         # agsadmin parsers, pure RESTful based parsers, only loaded if agsadmin is available
         import agstools.agsadmin
         agstools.agsadmin.load_parsers(subparsers)
+    
+    # pure arcpy parsers
+    import agstools.arcpy
+    agstools.arcpy.load_parsers(subparsers)
 
     if len(sys.argv) == 1:
         parser.print_help()
