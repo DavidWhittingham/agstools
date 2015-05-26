@@ -19,6 +19,8 @@ try:
 except ImportError:
     AGSADMIN_AVAILABLE = False
 
+_DIRS_TO_DELETE = []
+
 DATA_SOURCE_TEMPLATES_HELP = """
 -------------------------
 CONFIGURATION INFORMATION
@@ -92,7 +94,7 @@ def main():
         # agsadmin parsers, pure RESTful based parsers, only loaded if agsadmin is available
         import agstools.agsadmin
         agstools.agsadmin.load_parsers(subparsers)
-    
+
     # pure arcpy parsers
     import agstools.arcpy
     agstools.arcpy.load_parsers(subparsers)
@@ -101,8 +103,13 @@ def main():
         parser.print_help()
         sys.exit(1)
 
-    args = parser.parse_args()
-    args.func(args)
+    try:
+        args = parser.parse_args()
+        args.func(args)
+    finally:
+        # Clean up temp directories, if any exist
+        for dir in _DIRS_TO_DELETE:
+            shutil.rmtree(dir)
 
 if __name__ == "__main__":
     main()
