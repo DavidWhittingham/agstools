@@ -162,10 +162,8 @@ For more information on each of the settings, see the ImageSDDraft class.
 }
 """
 
-def _process_arguments(args):
-    args, func = namespace_to_dict(args)
-
-    tool_runner_full_path = os.path.abspath(args["tool_runner"])
+def get_tool_runner_result(tool_runner_path):
+    tool_runner_full_path = os.path.abspath(tool_runner_path)
     tool_runner_working_dir = os.path.dirname(tool_runner_full_path)
     orig_working_dir = os.getcwd()
 
@@ -176,11 +174,15 @@ def _process_arguments(args):
     try:
         # Turn tool runner script into result argument
         tool_runner = imp.load_source("gptoolrunner", tool_runner_full_path)
-        args["result"] = tool_runner.RESULT
+        return tool_runner.RESULT
     finally:
         # Set working directory back to original, for consistency
         os.chdir(orig_working_dir)
 
+def _process_arguments(args):
+    args, func = namespace_to_dict(args)
+
+    args["result"] = get_tool_runner_result(args["tool_runner"])
     args.pop("tool_runner")
 
     args = config_to_settings(args)
