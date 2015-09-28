@@ -232,6 +232,8 @@ def mxd_to_sddraft(mxd, output = None, name = None, folder = None, leave_existin
 
     mxd = open_map_document(mxd)
 
+    print("Creating SD Draft for: {0}".format(mxd.filePath))
+
     if name == None:
         name = path.splitext(path.basename(mxd.filePath))[0].strip().replace(" ", "_")
 
@@ -245,7 +247,7 @@ def mxd_to_sddraft(mxd, output = None, name = None, folder = None, leave_existin
         settings["keep_cache"] = True
 
     sd_draft = arcpyext.publishing.convert_map_to_service_draft(mxd, output, name, folder)
-    
+
     sd_draft._set_props_from_dict(settings)
 
     sd_draft.save()
