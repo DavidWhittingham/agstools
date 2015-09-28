@@ -16,6 +16,8 @@ def create_image_sddraft(input, output, name = None, folder = None, leave_existi
     input = format_input_path(input, check_exists = False)
     output = format_output_path(output)
 
+    print("Creating image service SD Draft for: {0}".format(input))
+
     if name == None:
         path_pair = path.splitext(input)
         if path_pair[1].lower() == ".lyr":
@@ -34,7 +36,7 @@ def create_image_sddraft(input, output, name = None, folder = None, leave_existi
     arcpy.CreateImageSDDraft(input, output, name, folder_name = folder, server_type = "ARCGIS_SERVER")
 
     sd_draft = arcpyext.publishing.load_image_sddraft(output)
-    
+
     sd_draft._set_props_from_dict(settings)
 
     sd_draft.save()
@@ -115,7 +117,7 @@ For more information on each of the settings, see the ImageSDDraft class.
         "allowed_mosaic_methods": [
             "NorthWest",
             "Center",
-            "LockRaster", 
+            "LockRaster",
             "ByAttribute",
             "Nadir",
             "Viewpoint",

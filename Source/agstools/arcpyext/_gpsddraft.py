@@ -12,9 +12,11 @@ from ._helpers import config_to_settings
 def create_gp_sddraft(toolbox, result, output = None, name = None, folder = None, leave_existing = False, settings = {}):
     import arcpy
     import arcpyext
-    
+
     # CreateGPSDDraft function doesn't work with relative paths, so we make sure they are absolute
     toolbox = os.path.abspath(toolbox)
+
+    print("Creating SD Draft for toolbox: {0}".format(toolbox))
 
     if output == None:
         output = "{0}.sddraft".format(os.path.splitext(toolbox)[0])
@@ -166,11 +168,11 @@ def _process_arguments(args):
     tool_runner_full_path = os.path.abspath(args["tool_runner"])
     tool_runner_working_dir = os.path.dirname(tool_runner_full_path)
     orig_working_dir = os.getcwd()
-    
+
     # Python tool runner will probably use relative imports
     # Working directory may not be the same though, so set working directory to compensate
     os.chdir(tool_runner_working_dir)
-    
+
     try:
         # Turn tool runner script into result argument
         tool_runner = imp.load_source("gptoolrunner", tool_runner_full_path)
@@ -178,7 +180,7 @@ def _process_arguments(args):
     finally:
         # Set working directory back to original, for consistency
         os.chdir(orig_working_dir)
-        
+
     args.pop("tool_runner")
 
     args = config_to_settings(args)
