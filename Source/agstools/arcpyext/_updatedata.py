@@ -38,7 +38,7 @@ def create_parser_updatedata(parser):
 
     parser_update_data.epilog = DATA_SOURCE_TEMPLATES_HELP
 
-def update_data(mxd, config, output_path = None, reload_symbology = False):
+def update_data(mxd, data_source_templates, output_path = None, reload_symbology = False):
     import arcpyext
 
     if output_path != None:
@@ -61,7 +61,7 @@ def update_data(mxd, config, output_path = None, reload_symbology = False):
 
     print("Listing data sources for replacement...")
     lds = arcpyext.mapping.list_document_data_sources(mxd)
-    rdsl = arcpyext.mapping.create_replacement_data_sources_list(lds, config["dataSourceTemplates"])
+    rdsl = arcpyext.mapping.create_replacement_data_sources_list(lds, data_source_templates)
 
     print("Updating data sources...")
     arcpyext.mapping.change_data_sources(mxd, rdsl)
@@ -114,6 +114,8 @@ def _process_arguments(args):
     args, func = namespace_to_dict(args)
 
     with open(args["config"], "r") as data_file:
-        args["config"] = normalize_paths_in_config(load(data_file), args["config"])
+        config = normalize_paths_in_config(load(data_file), args["config"])
+        args["data_source_templates"] = config["dataSourceTemplates"]
+        args.pop("config")
 
     func(**args)
