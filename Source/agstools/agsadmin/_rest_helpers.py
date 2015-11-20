@@ -45,7 +45,7 @@ def create_parser_agsrest_servop_parent(parents):
 
     group_req.add_argument("-n", "--name", required = True,
         help = "Name of the service.")
-    group_req.add_argument("-t", "--type", choices = ["MapServer"], required = True,
+    group_req.add_argument("-t", "--type", choices = ["MapServer","GpServer"], required = True,
         help = "The type of the service.")
 
     group_opt.add_argument("-f", "--folder",
