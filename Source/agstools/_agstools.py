@@ -4,7 +4,7 @@ import argparse
 import imp
 import sys
 
-from ._helpers import create_argument_groups, HELP_FLAG_TEXT, execute_args, format_input_path, format_output_path
+from ._helpers import HELP_FLAG_TEXT
 
 ARCPYEXT_AVAILABLE = True
 AGSADMIN_AVAILABLE = True
@@ -18,6 +18,8 @@ try:
     imp.find_module("agsadmin")
 except ImportError:
     AGSADMIN_AVAILABLE = False
+
+_DIRS_TO_DELETE = []
 
 DATA_SOURCE_TEMPLATES_HELP = """
 -------------------------
@@ -70,8 +72,8 @@ def main():
     parser_description = "Helper tools for performing ArcGIS Server administrative functions."
 
     if not ARCPYEXT_AVAILABLE and not AGSADMIN_AVAILABLE:
-        parser_description = "{0} No compatible libraries are installed, all functions are disabled. \
-            Please install arcpyext or agsadmin.".format(parser_description)
+        parser_description = "{0} No compatible libraries are installed, only basic functions from arcpy are \
+            available.  Please install arcpyext or agsadmin for additional functionality.".format(parser_description)
     elif not ARCPYEXT_AVAILABLE:
         parser_description = "{0} 'arcpy'/'arcpyext' are not available, functions limited to RESTful service \
             interaction only!".format(parser_description)
@@ -84,7 +86,7 @@ def main():
     subparsers = parser.add_subparsers()
 
     if ARCPYEXT_AVAILABLE:
-        # arcpyext-based Parsers, only added if arcpyext is available
+        # arcpyext-based parsers, only added if arcpyext is available
         import agstools.arcpyext
         agstools.arcpyext.load_parsers(subparsers)
 
@@ -93,12 +95,21 @@ def main():
         import agstools.agsadmin
         agstools.agsadmin.load_parsers(subparsers)
 
+    # pure arcpy parsers
+    import agstools.arcpy
+    agstools.arcpy.load_parsers(subparsers)
+
     if len(sys.argv) == 1:
         parser.print_help()
         sys.exit(1)
 
-    args = parser.parse_args()
-    args.func(args)
+    try:
+        args = parser.parse_args()
+        args.func(args)
+    finally:
+        # Clean up temp directories, if any exist
+        for dir in _DIRS_TO_DELETE:
+            shutil.rmtree(dir)
 
 if __name__ == "__main__":
     main()

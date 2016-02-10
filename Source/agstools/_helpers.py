@@ -1,6 +1,6 @@
 from __future__ import print_function, unicode_literals, absolute_import
 
-from datetime import timedelta
+from datetime import timedelta, datetime
 from json import load
 from os import path, makedirs
 
@@ -27,6 +27,18 @@ def create_argument_groups(parser, req_group = True, opt_group = True, flags_gro
 
     return (req, opt, flags)
 
+def create_temp_folder():
+    # Generate a unique folder name.
+    temp_folder_name = "agstools_{0}_{1}".format(
+        datetime.now().strftime("%Y-%m-%d_%H-%M-%S"),
+        ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(6)))
+
+    # Create the directory and return
+    temp_folder_path = path.join(tempfile.gettempdir(), temp_folder_name)
+    makedirs(temp_folder_path)
+    agstools._DIRS_TO_DELETE.append(temp_folder_path)
+    return temp_folder_path
+
 def execute_args(args):
     args, func = namespace_to_dict(args)
     func(**args)
@@ -52,19 +64,21 @@ def namespace_to_dict(args):
     # This has lots of stuff specific to the various subparsers.
     # Now that they are broken out, this should be refactored.
 
-    keys_to_remove = ("lib_func", "func", "server", "username", "password", "instance", "port", "utc_delta", "proxy",
-                      "ssl", "parse_for_restadmin", "_json_files")
+    keys_to_remove = ["lib_func", "func"]
 
     args = vars(args)
     func = args["lib_func"]
 
     if "_json_files" in args and args["_json_files"]:
+        keys_to_remove.append("_json_files")
         for prop_name in args["_json_files"]:
             if args[prop_name] == None:
                 continue
             args[prop_name] = read_json_file(args[prop_name])
 
     if "parse_for_restadmin" in args and args["parse_for_restadmin"]:
+        keys_to_remove.extend(["server", "username", "password", "instance", "port", "utc_delta", "proxy", "ssl", 
+                               "parse_for_restadmin"])
         restadmin = _create_rest_admin_service(
             args["server"],
             args["username"],
@@ -81,7 +95,7 @@ def namespace_to_dict(args):
         args.pop(key, None)
     return (args, func)
 
-def nomalize_paths_in_config(config, filepath):
+def normalize_paths_in_config(config, filepath):
     if config.has_key("dataSourceTemplates"):
         for template in config["dataSourceTemplates"]:
             if template["dataSource"].has_key("workspacePath"):
@@ -95,6 +109,12 @@ def nomalize_paths_in_config(config, filepath):
                         template["dataSource"]["workspacePath"]))
     return config
 
+def read_json_file(file_path):
+    file_path = format_input_path(file_path, "Path to the JSON-encoded data sources file is invalid.")
+
+    with open(file_path, "r") as data_file:
+        return load(data_file)
+
 def _create_rest_admin_service(server, username, password, instance, port, utc_delta, proxy, ssl):
     import agsadmin
 
@@ -103,9 +123,3 @@ def _create_rest_admin_service(server, username, password, instance, port, utc_d
 
     return agsadmin.RestAdmin(server, username, password, instance_name = instance, utc_delta = timedelta(minutes = utc_delta),
         proxies = proxy, port = port, use_ssl = ssl)
-
-def read_json_file(file_path):
-    file_path = format_input_path(file_path, "Path to the JSON-encoded data sources file is invalid.")
-
-    with open(file_path, "r") as data_file:
-        return load(data_file)

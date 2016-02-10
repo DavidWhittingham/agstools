@@ -9,9 +9,10 @@ from json import load
 from os import path, remove
 from shutil import rmtree
 
-from agstools._helpers import create_argument_groups, namespace_to_dict
+from agstools._helpers import create_argument_groups, namespace_to_dict, normalize_paths_in_config, format_output_path
 from agstools._agstools import DATA_SOURCE_TEMPLATES_HELP
-from ._mxd_helpers import open_map_document
+from ._helpers import open_map_document
+
 
 def create_parser_updatedata(parser):
     """Creates a sub-parser for updating the data sources of a map document."""
@@ -37,12 +38,12 @@ def create_parser_updatedata(parser):
 
     parser_update_data.epilog = DATA_SOURCE_TEMPLATES_HELP
 
-def update_data(mxd, config, output_path = None, reload_symbology = False):
+def update_data(mxd, data_source_templates, output_path = None, reload_symbology = False):
     import arcpyext
 
     if output_path != None:
         # have to do this at the top because opening a map document changes the working directory of the environment
-        output_path = _format_output_path(output_path)
+        output_path = format_output_path(output_path)
 
     mxd = open_map_document(mxd)
     working_folder = path.join(tempfile.gettempdir(), "agstools")
@@ -60,7 +61,7 @@ def update_data(mxd, config, output_path = None, reload_symbology = False):
 
     print("Listing data sources for replacement...")
     lds = arcpyext.mapping.list_document_data_sources(mxd)
-    rdsl = arcpyext.mapping.create_replacement_data_sources_list(lds, config["dataSourceTemplates"])
+    rdsl = arcpyext.mapping.create_replacement_data_sources_list(lds, data_source_templates)
 
     print("Updating data sources...")
     arcpyext.mapping.change_data_sources(mxd, rdsl)
@@ -113,6 +114,8 @@ def _process_arguments(args):
     args, func = namespace_to_dict(args)
 
     with open(args["config"], "r") as data_file:
-        args["config"] = nomalize_paths_in_config(load(data_file), args["config"])
+        config = normalize_paths_in_config(load(data_file), args["config"])
+        args["data_source_templates"] = config["dataSourceTemplates"]
+        args.pop("config")
 
     func(**args)

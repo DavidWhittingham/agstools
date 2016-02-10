@@ -7,7 +7,7 @@ from json import load
 from os import path, listdir
 
 from agstools._agstools import DATA_SOURCE_TEMPLATES_HELP
-from agstools._helpers import create_argument_groups, format_input_path, format_output_path, namespace_to_dict
+from agstools._helpers import create_argument_groups, format_input_path, format_output_path, namespace_to_dict, normalize_paths_in_config
 from ._updatedata import update_data
 
 MXD_FILETYPE_PATH_FILTER = "*.mxd"
@@ -38,7 +38,7 @@ def create_parser_multi_update_data(parser):
 
     parser_update_data.epilog = DATA_SOURCE_TEMPLATES_HELP
 
-def update_data_folder(input_path, output_path, config, reload_symbology = False):
+def update_data_folder(input_path, output_path, data_source_templates, reload_symbology = False):
     import arcpy
     import arcpyext
 
@@ -48,7 +48,7 @@ def update_data_folder(input_path, output_path, config, reload_symbology = False
         mxd_out = format_output_path(path.join(output_path, mxd_in))
         mxd_in = path.join(input_path, mxd_in)
 
-        update_data(mxd_in, config, mxd_out, reload_symbology)
+        update_data(mxd_in, data_source_templates, mxd_out, reload_symbology)
 
 def _compare_last_modified(base_file, other_file):
     return path.getmtime(other_file) - path.getmtime(base_file)
@@ -87,6 +87,8 @@ def _process_arguments(args):
         args[key] = format_input_path(args[key], "The path provided for '{0}' is invalid.".format(key))
 
     with open(args["config"], "r") as data_file:
-        args["config"] = nomalize_paths_in_config(load(data_file), args["config"])
+        config = normalize_paths_in_config(load(data_file), args["config"])
+        args["data_source_templates"] = config["dataSourceTemplates"]
+        args.pop("config")
 
     func(**args)

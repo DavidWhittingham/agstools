@@ -7,6 +7,7 @@ from os import path
 
 from agstools._helpers import create_argument_groups, namespace_to_dict, format_input_path, format_output_path, read_json_file
 from agstools._storenamevaluepairs import StoreNameValuePairs
+from ._helpers import config_to_settings
 
 def create_image_sddraft(input, output, name = None, folder = None, leave_existing = False, settings = {}):
     import arcpy
@@ -14,6 +15,8 @@ def create_image_sddraft(input, output, name = None, folder = None, leave_existi
 
     input = format_input_path(input, check_exists = False)
     output = format_output_path(output)
+
+    print("Creating image service SD Draft for: {0}".format(input))
 
     if name == None:
         path_pair = path.splitext(input)
@@ -32,19 +35,9 @@ def create_image_sddraft(input, output, name = None, folder = None, leave_existi
 
     arcpy.CreateImageSDDraft(input, output, name, folder_name = folder, server_type = "ARCGIS_SERVER")
 
-    sd_draft = arcpyext.publishing.ImageSDDraft(output)
+    sd_draft = arcpyext.publishing.load_image_sddraft(output)
 
-    def set_arg(sd_draft, k, v):
-        if hasattr(sd_draft, k):
-            setattr(sd_draft, k, v)
-
-    # min instances must be set before max instances, so we get it out of the way
-    if "min_instances" in settings:
-        set_arg(sd_draft, "min_instances", settings["min_instances"])
-        del settings["min_instances"]
-
-    for k, v in settings.items():
-        set_arg(sd_draft, k, v)
+    sd_draft._set_props_from_dict(settings)
 
     sd_draft.save()
 
@@ -71,8 +64,7 @@ def create_parser_image_sddraft(parser):
         help = "Path to JSON-encoded file with a 'dataSource' field containing the raster path.")
 
     group_req.add_argument("-o", "--output", required = True,
-        help = "The path to save the SD Draft to. If left out, defaults to saving with the same filename/path as the \
-            MXD (use '*.sddraft' as extension).")
+        help = "The path to save the SD Draft to (use '*.sddraft' as extension).")
 
     group_opt.add_argument("-n", "--name",
         help = "Name of the published service.  Defaults to the raster layer name (spaces and periods in the name will \
@@ -99,7 +91,7 @@ file.
 Service Settings
 ---------------------
 The 'serviceSettings' key contains a dictionary of key/value pairs with keys
-corresponding to the name of properties on the arcpy.mapping.ImageSDDraft
+corresponding to the name of properties on the arcpy.publishing.ImageSDDraft
 class, and values being the data that will be applied to each property on the
 class.  All values are optional, but any supplied value will supersede any value
 provided by one of the command-line parameters.
@@ -132,28 +124,31 @@ For more information on each of the settings, see the ImageSDDraft class.
             "Seamline",
             "None"
         ],
-        "available_fields": (This is a list of available fields from the data source),
-        "cluster": "clusterNameHere",
-        "default_resampling_method": (This is one of the following integers:
-            0 - nearest neighbour,
-            1 - bilinear,
-            2 - cubic,
-            3 - majority
-        ),
-        "description": "Service description goes here.",
-        "enabled_extensions": [
-            "WMSServer",
-            "WCSServer",
-            "JPIPServer"
+        "available_fields": ["List", "Fields", "Here"],
+        "capabilities": [
+            "Catalog",
+            "Edit",
+            "Mensuration",
+            "Pixels",
+            "Download",
+            "Image",
+            "Metadata"
         ],
+        "cluster": "clusterNameHere",
+        "default_resampling_method": (0 | 1 | 2 | 3) /* 0=Nearest Neighbour; 1=Bilinear; 2=Cubic; 3=Majority */,
+        "description": "Service description goes here.",
+        "folder": "Imagery",
         "high_isolation": (true | false),
         "idle_timeout": 600,
         "instances_per_container": 4,
-        "keep_cache": true,
-        "max_download_image_count": 20,
-        "max_download_size_limit": 2048,
-        "max_image_height": 4100,
-        "max_image_width": 15000,
+        "jpip_server": {
+            "enabled": (true | false)
+        },
+        "keep_cache": (true | false),
+        "max_download_image_count": 100,
+        "max_download_size_limit": 100,
+        "max_image_height": 1024,
+        "max_image_width": 1024,
         "max_instances": 4,
         "max_mosaic_image_count": 20,
         "max_record_count": 1000,
@@ -161,11 +156,66 @@ For more information on each of the settings, see the ImageSDDraft class.
         "name": "ServiceNameGoesHere",
         "recycle_interval": 24,
         "recycle_start_time": "23:00",
-        "replace_existing": true,
+        "replace_existing": (true | false),
         "return_jpgpng_as_jpg": (true | false),
         "summary": "Map service summary goes here.",
         "usage_timeout": 60,
-        "wait_timeout": 600
+        "wait_timeout": 600,
+        "wcs_server": {
+            "abstract": "This is an example abstract.",
+            "access_constraints": "This service contains sensitive business data, INTERNAL USE ONLY.",
+            "administrative_area": "State of FooBar",
+            "address": "123 Fake St.",
+            "city": "Faketown",
+            "country": "Kingdom of FooBar",
+            "custom_get_capabilities": (true | false),
+            "email": "email@example.com",
+            "enabled": (true | false),
+            "facsimile": "+111 1111 1111",
+            "fees": "Service is free for non-commercial use.",
+            "individual_name": "Doe",
+            "keyword": "FooBar, Spatial",
+            "name": "FooBarService",
+            "organization": "Fake Corp.",
+            "path_to_custom_get_capabilities_files": "http://foobar.com/services/Wms/FooBarRoads",
+            "phone": "+222 2222 2222",
+            "position_name": "WMS Services Contact Officer",
+            "post_code": 10532,
+            "title": "FooBar Roads Service"
+        },
+        "wms_server": {
+            "abstract": "This is an example abstract.",
+            "access_constraints": "This service contains sensitive business data, INTERNAL USE ONLY.",
+            "administrative_area": "State of FooBar",
+            "address": "123 Fake St.",
+            "address_type": "postal",
+            "capabilities": [
+                "GetCapabilities",
+                "GetMap",
+                "GetFeatureInfo",
+                "GetStyles",
+                "GetLegendGraphic",
+                "GetSchemaExtension"
+            ],
+            "city": "Faketown",
+            "country": "Kingdom of FooBar",
+            "custom_get_capabilities": (true | false),
+            "email": "email@example.com",
+            "enabled": (true | false),
+            "facsimile": "+111 1111 1111",
+            "fees": "Service is free for non-commercial use.",
+            "inherit_layer_names": (true | false),
+            "individual_name": "Doe",
+            "keyword": "FooBar, Spatial",
+            "name": "FooBarService",
+            "organization": "Fake Corp.",
+            "path_to_custom_get_capabilities_files": "http://foobar.com/services/Wms/FooBarRoads",
+            "path_to_custom_sld_file": "http://foobar.com/services/FooBarRoads.sld",
+            "phone": "+222 2222 2222",
+            "position_name": "WMS Services Contact Officer",
+            "post_code": 10532,
+            "title": "FooBar Roads Service"
+        }
     }
 }
 """
@@ -183,12 +233,6 @@ def _process_arguments(args):
                         check_exists = False)
         args.pop("json_path", None)
 
-    if "config" in args:
-        if args["config"] != None:
-            if "settings" in args and args["settings"] != None:
-                args["settings"].update(args["config"]["serviceSettings"])
-            else:
-                args["settings"] = args["config"]["serviceSettings"]
-        args.pop("config", None)
+    args = config_to_settings(args)
 
     func(**args)

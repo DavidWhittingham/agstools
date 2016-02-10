@@ -39,9 +39,7 @@ def sddraft_to_sd(sddraft, output = None, persist = False):
         sd_draft_backup_path = "{0}.sddraft.bak".format(path.splitext(sddraft)[0])
         copy2(sddraft, sd_draft_backup_path)
 
-    sd_draft = arcpyext.publishing.MapSDDraft(sddraft)
-
-    arcpyext.publishing.convert_service_draft_to_staged_service(sd_draft, output)
+    arcpyext.publishing.convert_service_draft_to_staged_service(sddraft, output)
 
     if persist == True:
         move(sd_draft_backup_path, sddraft)
