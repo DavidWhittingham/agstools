@@ -7,6 +7,7 @@ with open('agstools/_version.py') as fin: exec(fin)
 
 packages = [
 	"agstools",
+    "agstools.arcpy",
     "agstools.arcpyext",
     "agstools.agsadmin",
 ]
