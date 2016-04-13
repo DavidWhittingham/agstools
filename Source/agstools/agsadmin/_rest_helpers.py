@@ -14,7 +14,7 @@ def create_parser_agsrest_parent():
         port = 6080
     )
 
-    group_req, group_opt, group_flags = create_argument_groups(parser_agsrest_parent, include_help_flag = False)
+    group_req, group_opt, group_flags = create_argument_groups(parser_agsrest_parent)
     group_req.add_argument("-s", "--server", required = True,
         help = "The host name of the ArcGIS Server (e.g. myarcgisserver.local).")
     group_req.add_argument("-u", "--username", required = True,
@@ -41,7 +41,7 @@ def create_parser_agsrest_servop_parent(parents):
     agsrest_servop_parent = argparse.ArgumentParser(add_help = False, parents = parents)
     agsrest_servop_parent.set_defaults(func = execute_args)
 
-    group_req, group_opt, group_flags = create_argument_groups(agsrest_servop_parent)
+    group_req, group_opt, group_flags = create_argument_groups(agsrest_servop_parent, include_help_flag = False)
 
     group_req.add_argument("-n", "--name", required = True,
         help = "Name of the service.")
@@ -52,3 +52,14 @@ def create_parser_agsrest_servop_parent(parents):
         help = "The folder that the service resides in.")
 
     return agsrest_servop_parent
+
+def create_parser_agsrest_machine_parent(parents):
+    agsrest_machine_parent = argparse.ArgumentParser(add_help = False, parents = parents)
+    agsrest_machine_parent.set_defaults(func = execute_args)
+
+    group_req, group_opt, group_flags = create_argument_groups(agsrest_machine_parent, include_help_flag = False)
+
+    group_req.add_argument("-n", "--name", required = True,
+        help = "Name of the machine.")
+
+    return agsrest_machine_parent
