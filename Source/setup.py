@@ -18,7 +18,7 @@ setup(
     packages = packages,
 
     #dependencies
-    install_requires = ["agsadmin>=0.1.2"],
+    install_requires = ["agsadmin>=0.1.2","future>=0.15.2"],
 
     #misc files to include
     package_data = {
