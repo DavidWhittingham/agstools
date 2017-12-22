@@ -1,16 +1,10 @@
-try:
-    from setuptools import setup
-except ImportError:
-    from distutils.core import setup
+from setuptools import setup, find_packages
 
-with open('agstools/_version.py') as fin: exec(fin)
+with open("agstools/_version.py") as fin: exec(fin)
+with open("requirements.txt") as fin: requirements = [s.strip() for s in fin.readlines()]
+with open("README.rst") as fin: long_description = fin.read()
 
-packages = [
-    "agstools",
-    "agstools.arcpy",
-    "agstools.arcpyext",
-    "agstools.agsadmin",
-]
+packages = find_packages(exclude=["*.tests", "*.tests.*", "tests.*", "tests"])
 
 setup(
     name = "agstools",
@@ -18,7 +12,7 @@ setup(
     packages = packages,
 
     #dependencies
-    install_requires = ["agsadmin>=0.1.2","future>=0.15.2"],
+    install_requires = requirements,
 
     #misc files to include
     package_data = {
@@ -35,6 +29,7 @@ setup(
     #PyPI MetaData
     author = __author__,
     description = "ArcGIS Server 10.1+ Administrative Command-Line Tools",
+    long_description = long_description,
     license = "BSD 3-Clause",
     keywords = "arcgis esri",
     url = "https://github.com/DavidWhittingham/agstools",

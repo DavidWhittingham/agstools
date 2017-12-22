@@ -1,4 +1,6 @@
-from __future__ import print_function, unicode_literals, absolute_import
+from __future__ import (absolute_import, division, print_function, unicode_literals)
+from builtins import (ascii, bytes, chr, dict, filter, hex, input, int, map, next, oct, open, pow, range, round, str,
+                      super, zip)
 
 from agstools._helpers import execute_args
 
@@ -8,7 +10,7 @@ def create_parser_service_stop(parser, parents):
     parser_stop.set_defaults(func = execute_args, lib_func = stop_service)
 
 def stop_service(restadmin, name, type, folder):
-    serv = restadmin.get_service(name, type, folder)
+    serv = restadmin.services.get_service(name, type, folder)
 
     print("Stopping service...")
     serv.stop_service()
